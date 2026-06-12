@@ -4,7 +4,7 @@
 PlayerSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 28
-  productGUID: 2dc784964b382d9429cd016a746e2988
+  productGUID: d867cae1f5ef61848afbe6e8587bfdba
   AndroidProfiler: 0
   AndroidFilterTouchesWhenObscured: 0
   AndroidEnableSustainedPerformanceMode: 0
@@ -13,7 +13,7 @@ PlayerSettings:
   useOnDemandResources: 0
   accelerometerFrequency: 60
   companyName: DefaultCompany
-  productName: SwarmCommander
+  productName: final project 1
   defaultCursor: {fileID: 0}
   cursorHotspot: {x: 0, y: 0}
   m_SplashScreenBackgroundColor: {r: 0.13725491, g: 0.12156863, b: 0.1254902, a: 1}
@@ -844,14 +844,14 @@ PlayerSettings:
   editorAssembliesCompatibilityLevel: 1
   m_RenderingPath: 1
   m_MobileRenderingPath: 1
-  metroPackageName: SwarmCommander
+  metroPackageName: final project 1
   metroPackageVersion: 
   metroCertificatePath: 
   metroCertificatePassword: 
   metroCertificateSubject: 
   metroCertificateIssuer: 
   metroCertificateNotAfter: 0000000000000000
-  metroApplicationDescription: SwarmCommander
+  metroApplicationDescription: final project 1
   wsaImages: {}
   metroTileShortName: 
   metroTileShowName: 0
@@ -923,11 +923,11 @@ PlayerSettings:
   activeInputHandler: 1
   windowsGamepadBackendHint: 0
   enableDirectStorage: 0
-  cloudProjectId: 05122369-e12b-4fdc-843e-e0972b336270
+  cloudProjectId: b7baa822-e037-45c4-88b3-fab6f1aaae74
   framebufferDepthMemorylessMode: 0
   qualitySettingsNames: []
-  projectName: SwarmCommander
-  organizationId: kingkan01274562
+  projectName: final project 1
+  organizationId: klwang0024
   cloudEnabled: 0
   legacyClampBlendShapeWeights: 0
   hmiLoadingImage: {fileID: 0}
