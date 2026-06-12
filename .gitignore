@@ -104,3 +104,10 @@ InitTestScene*.unity*
 
 # Auto-generated cache in Assets folder
 /[Aa]ssets/[Ss]ceneDependencyCache*
+
+# Large FBX models
+SwarmCommander/Assets/Terrain/Models/Structure/Radar_station2.fbx
+SwarmCommander/Assets/Terrain/Models/Structure/SAM site.fbx
+SwarmCommander/Assets/Terrain/Models/FighterJet/Decoy_Drone.fbx
+SwarmCommander/Assets/Terrain/Models/FighterJet/Relay_Drone.fbx
+SwarmCommander/Assets/Terrain/Models/Structure/Jamming_tower.fbx
