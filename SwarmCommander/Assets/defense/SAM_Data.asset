@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4c5d72e28374e3043a5be427260dae89, type: 3}
+  m_Name: SAM_Data
+  m_EditorClassIdentifier: Assembly-CSharp::WeaponData
+  weaponName: SAM Site
+  realWorldReference: 
+  detectionRange: 40
+  fireRange: 35
+  fireRate: 3
+  damage: 100
+  projectileSpeed: 15
+  projectilePrefab: {fileID: 8355905775383150658, guid: 50d2584d5e6f8614cb695bd831895449, type: 3}
+  isGuided: 1
+  reactionDelayBase: 1
+  baseAimError: 0
