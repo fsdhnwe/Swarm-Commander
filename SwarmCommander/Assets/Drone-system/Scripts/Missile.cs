@@ -35,7 +35,7 @@ public class Missile : MonoBehaviour
             return;
         }
 
-        Vector3 targetPos = target.transform.position;
+        Vector3 targetPos = target.AimPosition;
         Vector3 dir = (targetPos - transform.position).normalized;
 
         transform.position += dir * speed * Time.deltaTime;

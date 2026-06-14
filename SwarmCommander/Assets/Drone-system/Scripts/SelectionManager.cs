@@ -80,13 +80,13 @@ public class SelectionManager : MonoBehaviour
     {
         // Cache all drones in the scene.
         // If you spawn drones at runtime, call RegisterDrone() instead.
-        foreach (var d in FindObjectsByType<DroneUnit>(FindObjectsSortMode.None))
+        foreach (var d in FindObjectsByType<DroneUnit>())
             _allDrones.Add(d);
 
-        foreach (var d in FindObjectsByType<ShahedDroneUnit>(FindObjectsSortMode.None))
+        foreach (var d in FindObjectsByType<ShahedDroneUnit>())
             _allShaheds.Add(d);
 
-        foreach (var d in FindObjectsByType<DecoyDroneUnit>(FindObjectsSortMode.None))
+        foreach (var d in FindObjectsByType<DecoyDroneUnit>())
             _allDecoys.Add(d);
     }
 

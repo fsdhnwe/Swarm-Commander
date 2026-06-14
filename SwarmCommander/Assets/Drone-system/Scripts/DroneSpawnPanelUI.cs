@@ -24,7 +24,7 @@ public class DroneSpawnPanelUI : MonoBehaviour
     void Awake()
     {
         if (placementManager == null)
-            placementManager = FindFirstObjectByType<DronePlacementManager>();
+            placementManager = FindAnyObjectByType<DronePlacementManager>();
     }
 
     void Start()

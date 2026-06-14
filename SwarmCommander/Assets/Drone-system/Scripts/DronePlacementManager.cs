@@ -30,7 +30,7 @@ public class DronePlacementManager : MonoBehaviour
     void Awake()
     {
         if (gameCamera == null) gameCamera = Camera.main;
-        if (selectionManager == null) selectionManager = FindFirstObjectByType<SelectionManager>();
+        if (selectionManager == null) selectionManager = FindAnyObjectByType<SelectionManager>();
     }
 
     void Update()

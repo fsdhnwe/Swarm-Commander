@@ -123,7 +123,7 @@ public class ShahedDroneUnit : MonoBehaviour
             return;
         }
 
-        Vector3 targetPos = _attackTarget.transform.position;
+        Vector3 targetPos = _attackTarget.AimPosition;
         targetPos.y = transform.position.y;
 
         Vector3 toTarget = targetPos - transform.position;
