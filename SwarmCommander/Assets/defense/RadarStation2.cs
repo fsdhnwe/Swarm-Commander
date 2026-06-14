@@ -3,12 +3,11 @@ using UnityEngine;
 // 雷達站專用腳本
 // 功能：偵測敵方無人機進入範圍，並切換狀態 (Idle / Detecting)
 [RequireComponent(typeof(BuildingHealth))]
-public class RadarStation : MonoBehaviour
+public class RadarStation2 : MonoBehaviour
 {
-    [Header("偵測範圍 (公尺)")]
+    [Header("偵測範圍 (公尺，不受物件 Scale 影響)")]
     public float detectionRadius = 15f;
 
-    // 簡單的狀態機 (FSM)
     public enum RadarState { Idle, Detecting }
     public RadarState currentState = RadarState.Idle;
 
@@ -18,18 +17,22 @@ public class RadarStation : MonoBehaviour
     {
         health = GetComponent<BuildingHealth>();
 
-        // 自動加上一個「偵測範圍」用的觸發器 (Trigger)
         SphereCollider detectionTrigger = gameObject.AddComponent<SphereCollider>();
         detectionTrigger.isTrigger = true;
-        detectionTrigger.radius = detectionRadius;
+
+        // 除以 lossy scale 的最大軸，讓 collider 的實際世界範圍等於 detectionRadius
+        // 不管物件 Scale 是多少，偵測圓圈永遠是妳填的數字
+        float maxScale = Mathf.Max(
+            transform.lossyScale.x,
+            transform.lossyScale.y,
+            transform.lossyScale.z
+        );
+        detectionTrigger.radius = (maxScale > 0f) ? detectionRadius / maxScale : detectionRadius;
     }
 
-    // 有東西進入偵測範圍時觸發
     void OnTriggerEnter(Collider other)
     {
         if (health.IsDestroyed) return;
-
-        // 注意：玩家的無人機方塊要在 Inspector 裡把 Tag 設成 "PlayerDrone"
         if (other.CompareTag("PlayerDrone"))
         {
             currentState = RadarState.Detecting;
@@ -37,7 +40,6 @@ public class RadarStation : MonoBehaviour
         }
     }
 
-    // 東西離開偵測範圍時
     void OnTriggerExit(Collider other)
     {
         if (other.CompareTag("PlayerDrone"))
@@ -47,8 +49,7 @@ public class RadarStation : MonoBehaviour
         }
     }
 
-    // 在 Scene 視窗畫出一個圓圈，方便妳看到偵測範圍多大
-    // 綠色 = 沒偵測到東西，紅色 = 偵測到東西
+    // Gizmos 直接用世界座標畫圓圈，永遠顯示正確的實際偵測範圍
     void OnDrawGizmos()
     {
         Gizmos.color = (currentState == RadarState.Idle) ? Color.green : Color.red;
