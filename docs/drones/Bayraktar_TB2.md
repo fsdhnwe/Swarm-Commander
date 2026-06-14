@@ -3,10 +3,6 @@
 ## 無人機型
 Bayraktar TB2
 
-## 模型網址
-https://sketchfab.com/3d-models/baykar-bayraktar-tb2-8e5b6972f7d049f19688096e03949487
-https://sketchfab.com/3d-models/russian-weapon-pack-af00b7135a184ecfb2812a0e54458a8a
-
 ---
 
 ## 外型圖片
