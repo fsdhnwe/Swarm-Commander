@@ -12,7 +12,7 @@ using System.Collections.Generic;
 [RequireComponent(typeof(BuildingHealth))]
 public class JammerTower : MonoBehaviour
 {
-    [Header("干擾範圍")]
+    [Header("干擾範圍 (公尺，不受物件 Scale 影響)")]
     public float jamRadius = 25f;
 
     [Header("干擾強度（每秒偏移距離，建議 3~8）")]
@@ -25,15 +25,36 @@ public class JammerTower : MonoBehaviour
     private List<Transform> targetsInRange = new List<Transform>();
     private Dictionary<Transform, Vector3> jamDirections = new Dictionary<Transform, Vector3>();
     private Dictionary<Transform, float> jamTimers = new Dictionary<Transform, float>();
-
-    // 記錄每架被干擾的無人機的移動腳本，離開範圍時恢復
     private Dictionary<Transform, MonoBehaviour> disabledScripts = new Dictionary<Transform, MonoBehaviour>();
+
+    // 手動在 Inspector 加上的 SphereCollider 參考，用來在 Start 修正半徑
+    private SphereCollider jamCollider;
 
     void Awake()
     {
         health = GetComponent<BuildingHealth>();
-        // ⚠️ SphereCollider 請在 Inspector 手動加，勾選 Is Trigger，設好半徑
-        // Awake 這裡不自動加，避免跟手動加的衝突
+
+        // JammerTower 的 SphereCollider 請在 Inspector 手動加（勾選 Is Trigger）
+        // 這裡只負責修正半徑，讓實際偵測範圍不受 Scale 影響
+        jamCollider = GetComponent<SphereCollider>();
+    }
+
+    void Start()
+    {
+        // Start 時物件 Scale 已經確定，這時候再修正半徑比較準確
+        if (jamCollider != null)
+        {
+            float maxScale = Mathf.Max(
+                transform.lossyScale.x,
+                transform.lossyScale.y,
+                transform.lossyScale.z
+            );
+            jamCollider.radius = (maxScale > 0f) ? jamRadius / maxScale : jamRadius;
+        }
+        else
+        {
+            Debug.LogWarning("[干擾塔] 找不到 SphereCollider，請在 Inspector 手動加上並勾選 Is Trigger");
+        }
     }
 
     void Update()
@@ -44,7 +65,6 @@ public class JammerTower : MonoBehaviour
             return;
         }
 
-        // 清除已消失/被擊落的目標（離開範圍由 OnTriggerExit 處理）
         List<Transform> toRemove = new List<Transform>();
         foreach (Transform t in targetsInRange)
         {
@@ -57,7 +77,6 @@ public class JammerTower : MonoBehaviour
         foreach (Transform t in toRemove)
             RemoveTarget(t);
 
-        // 對範圍內的目標施加干擾偏移
         foreach (Transform t in targetsInRange)
         {
             if (t == null) continue;
@@ -144,6 +163,7 @@ public class JammerTower : MonoBehaviour
         disabledScripts.Clear();
     }
 
+    // Gizmos 直接用世界座標畫，永遠顯示正確的實際干擾範圍
     void OnDrawGizmos()
     {
         Gizmos.color = new Color(0.6f, 0f, 1f, 0.4f);

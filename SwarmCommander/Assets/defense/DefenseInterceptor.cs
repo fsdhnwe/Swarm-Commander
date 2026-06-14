@@ -15,6 +15,12 @@ public class DefenseInterceptor : MonoBehaviour
     [Header("武器參數 (把 SAM 或 AAA 的 WeaponData 拖到這裡)")]
     public WeaponData weaponData;
 
+    [Header("砲塔旋轉物件 (把會轉動的子物件拖進來；留空則轉動整個建築)")]
+    public Transform turretPivot;
+
+    [Header("模型正面角度修正 (Y軸偏移，先試 0，歪了再調 90 或 -90 或 180)")]
+    public float rotationOffsetY = 90f;
+
     [Header("發射點 (可留空，留空則從本體位置發射)")]
     public Transform firePoint;
 
@@ -23,7 +29,7 @@ public class DefenseInterceptor : MonoBehaviour
 
     private BuildingHealth health;
     private float cooldownTimer = 0f;
-    private float reactionTimer = -1f; // -1 表示尚未開始倒數
+    private float reactionTimer = -1f;
     private List<Transform> targetsInRange = new List<Transform>();
     private Transform currentTarget;
 
@@ -31,7 +37,6 @@ public class DefenseInterceptor : MonoBehaviour
     {
         health = GetComponent<BuildingHealth>();
 
-        // 自動加上偵測範圍 (Trigger)
         SphereCollider detectionTrigger = gameObject.AddComponent<SphereCollider>();
         detectionTrigger.isTrigger = true;
         detectionTrigger.radius = weaponData != null ? weaponData.detectionRange : 30f;
@@ -41,31 +46,27 @@ public class DefenseInterceptor : MonoBehaviour
     {
         if (weaponData == null) return;
 
-        // 被摧毀後直接停止運作
         if (health.IsDestroyed)
         {
             currentState = InterceptorState.Idle;
             return;
         }
 
-        // 清除已經消失/被擊落的目標
         targetsInRange.RemoveAll(t => t == null || !t.gameObject.activeInHierarchy);
 
         switch (currentState)
         {
             case InterceptorState.Idle:
-                // 範圍內有目標 -> 進入偵測
                 if (targetsInRange.Count > 0)
                     currentState = InterceptorState.Detect;
                 break;
 
             case InterceptorState.Detect:
-                // 從範圍內的目標中找最近的一個
                 currentTarget = FindClosestTarget();
                 if (currentTarget != null)
                 {
                     currentState = InterceptorState.Track;
-                    reactionTimer = -1f; // 重置反應計時
+                    reactionTimer = -1f;
                 }
                 else
                 {
@@ -81,7 +82,6 @@ public class DefenseInterceptor : MonoBehaviour
                     break;
                 }
 
-                // 直接用距離判斷目標是否還在偵測範圍內（不依賴 OnTriggerExit）
                 if (Vector3.Distance(transform.position, currentTarget.position) > weaponData.detectionRange)
                 {
                     currentTarget = null;
@@ -93,13 +93,10 @@ public class DefenseInterceptor : MonoBehaviour
                 float dist = Vector3.Distance(transform.position, currentTarget.position);
                 if (dist <= weaponData.fireRange)
                 {
-                    // 進入射程才開始朝目標轉向 (未進入射程時砲台保持原本方向)
                     RotateTowards(currentTarget.position);
-                    // 第一次進入射程：開始反應延遲倒數
+
                     if (reactionTimer < 0f)
-                    {
                         reactionTimer = GetReactionDelay();
-                    }
 
                     reactionTimer -= Time.deltaTime;
                     if (reactionTimer <= 0f)
@@ -110,7 +107,6 @@ public class DefenseInterceptor : MonoBehaviour
                 }
                 else
                 {
-                    // 目標離開射程，反應延遲重新計算
                     reactionTimer = -1f;
                 }
                 break;
@@ -125,7 +121,6 @@ public class DefenseInterceptor : MonoBehaviour
                 cooldownTimer -= Time.deltaTime;
                 if (cooldownTimer <= 0f)
                 {
-                    // 冷卻結束，如果還有目標就重新偵測，否則回到 Idle
                     currentState = (targetsInRange.Count > 0)
                         ? InterceptorState.Detect
                         : InterceptorState.Idle;
@@ -146,9 +141,7 @@ public class DefenseInterceptor : MonoBehaviour
     void OnTriggerExit(Collider other)
     {
         if (other.CompareTag("PlayerDrone"))
-        {
             targetsInRange.Remove(other.transform);
-        }
     }
 
     private Transform FindClosestTarget()
@@ -171,28 +164,28 @@ public class DefenseInterceptor : MonoBehaviour
 
     private void RotateTowards(Vector3 targetPos)
     {
-        Vector3 direction = targetPos - transform.position;
+        Transform pivot = (turretPivot != null) ? turretPivot : transform;
+
+        Vector3 direction = targetPos - pivot.position;
         if (direction.sqrMagnitude < 0.001f) return;
 
         Quaternion targetRotation = Quaternion.LookRotation(direction);
-        // 200 = 轉向速度，數字越大轉得越快
-        transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation, 200f * Time.deltaTime);
+        targetRotation *= Quaternion.Euler(0, rotationOffsetY, 0);
+        pivot.rotation = Quaternion.RotateTowards(pivot.rotation, targetRotation, 200f * Time.deltaTime);
     }
 
-    // 通訊完整度越低，反應延遲越長 (最多放大到約3倍)
     private float GetReactionDelay()
     {
         float comms = CommandNetwork.Instance != null ? CommandNetwork.Instance.commsIntegrity : 1f;
-        float multiplier = Mathf.Lerp(3f, 1f, comms); // comms=0 -> x3, comms=1 -> x1
+        float multiplier = Mathf.Lerp(3f, 1f, comms);
         return weaponData.reactionDelayBase * multiplier;
     }
 
-    // 通訊完整度越低，瞄準誤差越大 (最多放大到約5倍)
     private float GetAimError()
     {
         float comms = CommandNetwork.Instance != null ? CommandNetwork.Instance.commsIntegrity : 1f;
         float worstCase = weaponData.baseAimError * 5f;
-        return Mathf.Lerp(worstCase, weaponData.baseAimError, comms); // comms=0 -> worstCase, comms=1 -> base
+        return Mathf.Lerp(worstCase, weaponData.baseAimError, comms);
     }
 
     private void FireAtTarget()
@@ -219,7 +212,6 @@ public class DefenseInterceptor : MonoBehaviour
         }
     }
 
-    // 在 Scene 視窗畫出兩個範圍圈：黃色=偵測範圍，紅色=攻擊範圍
     void OnDrawGizmos()
     {
         if (weaponData == null) return;
