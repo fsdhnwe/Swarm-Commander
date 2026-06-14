@@ -41,11 +41,13 @@ GameObject:
   m_Component:
   - component: {fileID: 2076847485158740661}
   - component: {fileID: 6422017955978636384}
+  - component: {fileID: 7310402016146820011}
   - component: {fileID: 3502118740141044652}
   - component: {fileID: 5681357374053839801}
+  - component: {fileID: 7310402016146820012}
   m_Layer: 6
   m_Name: FightingDrone
-  m_TagString: Untagged
+  m_TagString: PlayerDrone
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -89,6 +91,33 @@ MeshCollider:
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: 0}
+--- !u!54 &7310402016146820011
+Rigidbody:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2456957617234425949}
+  serializedVersion: 5
+  m_Mass: 1
+  m_LinearDamping: 0
+  m_AngularDamping: 0.05
+  m_CenterOfMass: {x: 0, y: 0, z: 0}
+  m_InertiaTensor: {x: 1, y: 1, z: 1}
+  m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ImplicitCom: 1
+  m_ImplicitTensor: 1
+  m_UseGravity: 0
+  m_IsKinematic: 1
+  m_Interpolate: 0
+  m_Constraints: 0
+  m_CollisionDetection: 0
 --- !u!114 &3502118740141044652
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -157,6 +186,19 @@ MonoBehaviour:
   missileSpeed: 40
   missilePrefab: {fileID: 3644450339989483645, guid: 111faf28bf28d1145b3cb66aea4f98cd, type: 3}
   missileLaunchPoint: {fileID: 3805443095268831684}
+--- !u!114 &7310402016146820012
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2456957617234425949}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 84ed070e2ab215f499247e94a50e3e97, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::DroneHealth
+  maxHP: 50
 --- !u!1001 &3980082755649573106
 PrefabInstance:
   m_ObjectHideFlags: 0

@@ -106,7 +106,7 @@ public class SimpleProjectile : MonoBehaviour
     {
         if (target != null)
         {
-            DroneHealth droneHealth = target.GetComponent<DroneHealth>();
+            DroneHealth droneHealth = target.GetComponentInParent<DroneHealth>();
             if (droneHealth != null)
             {
                 droneHealth.TakeDamage(damage);

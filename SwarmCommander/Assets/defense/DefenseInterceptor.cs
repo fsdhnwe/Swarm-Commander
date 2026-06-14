@@ -131,17 +131,35 @@ public class DefenseInterceptor : MonoBehaviour
 
     void OnTriggerEnter(Collider other)
     {
-        if (other.CompareTag("PlayerDrone"))
+        if (IsPlayerDrone(other))
         {
-            if (!targetsInRange.Contains(other.transform))
-                targetsInRange.Add(other.transform);
+            Transform target = GetDroneTargetTransform(other);
+            if (target != null && !targetsInRange.Contains(target))
+                targetsInRange.Add(target);
         }
     }
 
     void OnTriggerExit(Collider other)
     {
-        if (other.CompareTag("PlayerDrone"))
-            targetsInRange.Remove(other.transform);
+        if (IsPlayerDrone(other))
+        {
+            Transform target = GetDroneTargetTransform(other);
+            if (target != null)
+                targetsInRange.Remove(target);
+        }
+    }
+
+    private Transform GetDroneTargetTransform(Collider other)
+    {
+        DroneHealth droneHealth = other.GetComponentInParent<DroneHealth>();
+        return droneHealth != null ? droneHealth.transform : other.transform;
+    }
+
+    private bool IsPlayerDrone(Collider other)
+    {
+        return other.CompareTag("PlayerDrone") ||
+               (other.transform.root != null && other.transform.root.CompareTag("PlayerDrone")) ||
+               other.GetComponentInParent<DroneHealth>() != null;
     }
 
     private Transform FindClosestTarget()

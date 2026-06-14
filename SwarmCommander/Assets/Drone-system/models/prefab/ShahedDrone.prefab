@@ -10,11 +10,13 @@ GameObject:
   m_Component:
   - component: {fileID: 7884803996511120317}
   - component: {fileID: 1335531443481360991}
+  - component: {fileID: 7310402016146822011}
   - component: {fileID: 1543333428420688192}
   - component: {fileID: 6289942150150903163}
+  - component: {fileID: 7310402016146822012}
   m_Layer: 6
   m_Name: ShahedDrone
-  m_TagString: Untagged
+  m_TagString: PlayerDrone
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -57,6 +59,33 @@ MeshCollider:
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: 5120999804348074672, guid: d7a912bcdbe3e1b4f86a2be1f5678c14, type: 3}
+--- !u!54 &7310402016146822011
+Rigidbody:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9015931966911867314}
+  serializedVersion: 5
+  m_Mass: 1
+  m_LinearDamping: 0
+  m_AngularDamping: 0.05
+  m_CenterOfMass: {x: 0, y: 0, z: 0}
+  m_InertiaTensor: {x: 1, y: 1, z: 1}
+  m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ImplicitCom: 1
+  m_ImplicitTensor: 1
+  m_UseGravity: 0
+  m_IsKinematic: 1
+  m_Interpolate: 0
+  m_Constraints: 0
+  m_CollisionDetection: 0
 --- !u!114 &1543333428420688192
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -111,6 +140,19 @@ MonoBehaviour:
   impactDistance: 10
   explosionEffectPrefab: {fileID: 0}
   bodyTransform: {fileID: 8489779324837956874}
+--- !u!114 &7310402016146822012
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9015931966911867314}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 84ed070e2ab215f499247e94a50e3e97, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::DroneHealth
+  maxHP: 50
 --- !u!1001 &8240312081376701153
 PrefabInstance:
   m_ObjectHideFlags: 0

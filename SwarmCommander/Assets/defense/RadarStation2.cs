@@ -33,7 +33,7 @@ public class RadarStation2 : MonoBehaviour
     void OnTriggerEnter(Collider other)
     {
         if (health.IsDestroyed) return;
-        if (other.CompareTag("PlayerDrone"))
+        if (IsPlayerDrone(other))
         {
             currentState = RadarState.Detecting;
             Debug.Log("雷達站偵測到敵方無人機: " + other.name);
@@ -42,7 +42,7 @@ public class RadarStation2 : MonoBehaviour
 
     void OnTriggerExit(Collider other)
     {
-        if (other.CompareTag("PlayerDrone"))
+        if (IsPlayerDrone(other))
         {
             currentState = RadarState.Idle;
             Debug.Log("敵方無人機離開偵測範圍");
@@ -54,5 +54,12 @@ public class RadarStation2 : MonoBehaviour
     {
         Gizmos.color = (currentState == RadarState.Idle) ? Color.green : Color.red;
         Gizmos.DrawWireSphere(transform.position, detectionRadius);
+    }
+
+    bool IsPlayerDrone(Collider other)
+    {
+        return other.CompareTag("PlayerDrone") ||
+               (other.transform.root != null && other.transform.root.CompareTag("PlayerDrone")) ||
+               other.GetComponentInParent<DroneHealth>() != null;
     }
 }
