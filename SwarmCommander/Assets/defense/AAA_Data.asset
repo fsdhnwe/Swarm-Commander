@@ -14,8 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::WeaponData
   weaponName: AAA Gepard
   realWorldReference: 
-  detectionRange: 25
-  fireRange: 20
+  detectionRange: 45
+  fireRange: 35
   fireRate: 0.3
   damage: 15
   projectileSpeed: 30

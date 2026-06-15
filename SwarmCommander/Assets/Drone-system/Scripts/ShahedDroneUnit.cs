@@ -124,7 +124,6 @@ public class ShahedDroneUnit : MonoBehaviour
         }
 
         Vector3 targetPos = _attackTarget.AimPosition;
-        targetPos.y = transform.position.y;
 
         Vector3 toTarget = targetPos - transform.position;
         float distance = toTarget.magnitude;
@@ -219,11 +218,16 @@ public class ShahedDroneUnit : MonoBehaviour
 
     void Detonate()
     {
+        Vector3 explosionPosition = transform.position;
+
+        if (_attackTarget != null)
+            explosionPosition = _attackTarget.AimPosition;
+
         if (_attackTarget != null && _attackTarget.IsAlive)
             _attackTarget.TakeDamage(attackDamage);
 
         if (explosionEffectPrefab != null)
-            Instantiate(explosionEffectPrefab, transform.position, Quaternion.identity);
+            Instantiate(explosionEffectPrefab, explosionPosition, Quaternion.identity);
 
         Destroy(gameObject);
     }
