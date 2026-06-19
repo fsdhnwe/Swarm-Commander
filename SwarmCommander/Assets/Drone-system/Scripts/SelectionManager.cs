@@ -172,7 +172,7 @@ public class SelectionManager : MonoBehaviour
             Physics.Raycast(ray, out RaycastHit targetHit, 1000f, targetLayer))
         {
             hoveredTarget = targetHit.collider.GetComponentInParent<TargetableObject>();
-            if (hoveredTarget != null && !hoveredTarget.IsAlive)
+            if (hoveredTarget != null && (!hoveredTarget.IsAlive || !hoveredTarget.HasActionableIntel))
                 hoveredTarget = null;
         }
 
@@ -373,7 +373,7 @@ public class SelectionManager : MonoBehaviour
         else if (Physics.Raycast(ray, out hit, 1000f, targetLayer))
         {
             var target = hit.collider.GetComponentInParent<TargetableObject>();
-            if (target == null || !target.IsAlive) return;
+            if (target == null || !target.IsAlive || !target.HasActionableIntel) return;
 
             if (!additive)
             {
@@ -456,7 +456,7 @@ public class SelectionManager : MonoBehaviour
         if (Physics.Raycast(ray, out RaycastHit targetHit, 1000f, targetLayer))
         {
             var target = targetHit.collider.GetComponentInParent<TargetableObject>();
-            if (target != null && target.IsAlive)
+            if (target != null && target.IsAlive && target.HasActionableIntel)
             {
                 DeselectAllTargets();
                 Select(target);

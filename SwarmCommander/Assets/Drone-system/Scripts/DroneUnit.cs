@@ -1,5 +1,6 @@
 ﻿using UnityEngine;
 using Pathfinding;
+using System;
 
 [RequireComponent(typeof(Seeker))]
 [RequireComponent(typeof(Collider))]
@@ -70,6 +71,8 @@ public class DroneUnit : MonoBehaviour
 
     private static readonly Collider[] _neighborBuffer = new Collider[32];
 
+    public event Action<DroneUnit> MoveArrived;
+
     public DroneState State => _state;
     public bool IsSelected { get; private set; }
     public Vector3 CurrentMoveDir => _currentMoveDir;
@@ -79,7 +82,7 @@ public class DroneUnit : MonoBehaviour
         _seeker = GetComponent<Seeker>();
         _renderers = GetComponentsInChildren<Renderer>();
         _hoverBasePosition = transform.position;
-        _hoverOffset = Random.Range(0f, Mathf.PI * 2f);
+        _hoverOffset = UnityEngine.Random.Range(0f, Mathf.PI * 2f);
         _outline = GetComponentInChildren<Outline>();
 
         if (bodyTransform == null)
@@ -134,6 +137,7 @@ public class DroneUnit : MonoBehaviour
             _hoverBasePosition = transform.position;
             _currentMoveDir = Vector3.zero;
             ChangeState(DroneState.Idle);
+            MoveArrived?.Invoke(this);
             return;
         }
 
@@ -166,7 +170,7 @@ public class DroneUnit : MonoBehaviour
 
     void UpdateAttack()
     {
-        if (_attackTarget == null || !_attackTarget.IsAlive)
+        if (_attackTarget == null || !_attackTarget.IsAlive || !_attackTarget.HasActionableIntel)
         {
             _hoverBasePosition = transform.position;
             _attackTarget = null;
@@ -281,7 +285,7 @@ public class DroneUnit : MonoBehaviour
 
     public void AttackTarget(TargetableObject target)
     {
-        if (target == null || !target.IsAlive) return;
+        if (target == null || !target.IsAlive || !target.HasActionableIntel) return;
 
         _attackTarget = target;
         _nextAttackTime = 0f;

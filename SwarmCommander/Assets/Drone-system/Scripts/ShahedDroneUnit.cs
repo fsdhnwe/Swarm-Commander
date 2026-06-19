@@ -115,7 +115,7 @@ public class ShahedDroneUnit : MonoBehaviour
 
     void UpdateAttack()
     {
-        if (_attackTarget == null || !_attackTarget.IsAlive)
+        if (_attackTarget == null || !_attackTarget.IsAlive || !_attackTarget.HasActionableIntel)
         {
             _attackTarget = null;
             _hoverBasePosition = transform.position;
@@ -151,7 +151,7 @@ public class ShahedDroneUnit : MonoBehaviour
 
     public void AttackTarget(TargetableObject target)
     {
-        if (target == null || !target.IsAlive) return;
+        if (target == null || !target.IsAlive || !target.HasActionableIntel) return;
 
         _attackTarget = target;
         ChangeState(ShahedState.Attack);
