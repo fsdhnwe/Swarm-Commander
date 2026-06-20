@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
+using UnityEngine.UI;
 
 /// <summary>
 /// Attach to a persistent GameObject (e.g. "GameManager").
@@ -8,6 +10,8 @@ using UnityEngine.InputSystem;
 /// </summary>
 public class SelectionManager : MonoBehaviour
 {
+    public enum AbilityDroneType { None, Recon, Decoy }
+
     [Header("References")]
     [Tooltip("Layer mask for drone colliders")]
     public LayerMask droneLayer;
@@ -38,6 +42,12 @@ public class SelectionManager : MonoBehaviour
     public float maldGapLength = 0.8f;
     public GameObject maldWaypointMarkerPrefab;
 
+    [Header("Recon Targeting")]
+    public Material reconRangeMaterial;
+    public Color reconRangeColor = new Color(0f, 0.9f, 1f, 0.9f);
+    public float reconRangeLineWidth = 0.15f;
+    public int reconRangeSegments = 96;
+
     // ── internal state ──────────────────────────────────────────────
     private readonly List<DroneUnit> _selected = new();
     private readonly List<ShahedDroneUnit> _selectedShaheds = new();
@@ -57,12 +67,20 @@ public class SelectionManager : MonoBehaviour
     private DecoyDroneUnit _hoveredDecoy;
     private TargetableObject _hoveredTarget;
     private DecoyDroneUnit _activePathDecoy;
+    private ReconDroneSkill _activeReconSkill;
     private readonly List<Vector3> _maldPathPoints = new();
     private readonly List<LineRenderer> _maldPreviewSegments = new();
     private readonly List<GameObject> _maldWaypointMarkers = new();
     private bool _isPlanningMaldPath;
+    private bool _isTargetingReconScan;
     private bool _lastPathWasValid = true;
     private Material _defaultMaldPathMaterial;
+    private Material _defaultReconRangeMaterial;
+    private LineRenderer _reconRangePreview;
+    private bool _pointerDownStartedOverUI;
+    private readonly List<RaycastResult> _uiRaycastResults = new();
+    private AbilityDroneType _activeAbilityType = AbilityDroneType.None;
+    private readonly List<AbilityDroneType> _availableAbilityTypes = new();
 
     private float _clickTime;
     private const float ClickMaxDuration = 0.2f;
@@ -71,6 +89,38 @@ public class SelectionManager : MonoBehaviour
     private SelectionBoxUI _boxUI;
 
     public bool InputBlocked { get; set; }
+    public AbilityDroneType ActiveAbilityType => _activeAbilityType;
+    public bool IsReconAbilityAvailable => _selectedRecons.Count > 0;
+    public bool IsDecoyAbilityAvailable => _selectedDecoys.Count > 0;
+
+    public void SetActiveAbilityTypeFromUI(AbilityDroneType abilityType)
+    {
+        if (abilityType == AbilityDroneType.Recon && !IsReconAbilityAvailable) return;
+        if (abilityType == AbilityDroneType.Decoy && !IsDecoyAbilityAvailable) return;
+
+        SetActiveAbilityType(abilityType);
+    }
+
+    public void GetAvailableAbilityTypesInSelectionOrder(List<AbilityDroneType> result)
+    {
+        result.Clear();
+
+        if (GameManager.Instance == null)
+        {
+            if (IsReconAbilityAvailable)
+                result.Add(AbilityDroneType.Recon);
+            if (IsDecoyAbilityAvailable)
+                result.Add(AbilityDroneType.Decoy);
+            return;
+        }
+
+        foreach (ISelectableDrone drone in GameManager.Instance.selectedDrones)
+        {
+            AbilityDroneType type = GetAbilityTypeForDrone(drone);
+            if (type != AbilityDroneType.None && !result.Contains(type))
+                result.Add(type);
+        }
+    }
 
     // ───────────────────────────────────────────────────────────────
     void Awake()
@@ -102,6 +152,35 @@ public class SelectionManager : MonoBehaviour
     public void RegisterRecon(ReconDroneUnit recon) => _allRecons.Add(recon);
     public void RegisterDecoy(DecoyDroneUnit decoy) => _allDecoys.Add(decoy);
 
+    public void SelectDronesFromSquad(IReadOnlyList<ISelectableDrone> squad)
+    {
+        DeselectAll();
+        if (squad == null) return;
+
+        foreach (ISelectableDrone drone in squad)
+            SelectSelectableDrone(drone);
+    }
+
+    public void SelectDroneFromUI(ISelectableDrone drone, bool addToSelection)
+    {
+        if (drone == null) return;
+
+        if (!addToSelection)
+            DeselectAll();
+
+        SelectSelectableDrone(drone);
+    }
+
+    public void DeselectDroneFromUI(ISelectableDrone drone)
+    {
+        DeselectSelectableDrone(drone);
+    }
+
+    public void ClearDroneSelectionFromUI()
+    {
+        DeselectAll();
+    }
+
     /// <summary>Call before destroying a drone.</summary>
     public void UnregisterDrone(DroneUnit drone)
     {
@@ -131,15 +210,22 @@ public class SelectionManager : MonoBehaviour
     void Update()
     {
         CleanupDestroyedUnits();
+        RefreshActiveAbilityType();
         HandleHover();
 
         if (InputBlocked) return;
 
-        HandleMaldPathHotkey();
+        HandleAbilityHotkeys();
 
         if (_isPlanningMaldPath)
         {
             HandleMaldPathPlanning();
+            return;
+        }
+
+        if (_isTargetingReconScan)
+        {
+            HandleReconScanTargeting();
             return;
         }
 
@@ -203,12 +289,89 @@ public class SelectionManager : MonoBehaviour
         SetHoveredTarget(hoveredTarget);
     }
 
-    void HandleMaldPathHotkey()
+    void HandleAbilityHotkeys()
     {
-        if (Keyboard.current == null || !Keyboard.current.eKey.wasPressedThisFrame)
+        if (Keyboard.current == null)
             return;
 
+        if (Keyboard.current.tabKey.wasPressedThisFrame)
+            CycleActiveAbilityType();
+
+        if (Keyboard.current.eKey.wasPressedThisFrame)
+            UseActiveAbility();
+    }
+
+    public void CycleActiveAbilityType()
+    {
+        GetAvailableAbilityTypesInSelectionOrder(_availableAbilityTypes);
+
+        if (_availableAbilityTypes.Count == 0)
+        {
+            SetActiveAbilityType(AbilityDroneType.None);
+            return;
+        }
+
+        int currentIndex = _availableAbilityTypes.IndexOf(_activeAbilityType);
+        if (currentIndex < 0)
+        {
+            SetActiveAbilityType(_availableAbilityTypes[0]);
+            return;
+        }
+
+        int nextIndex = (currentIndex + 1) % _availableAbilityTypes.Count;
+        SetActiveAbilityType(_availableAbilityTypes[nextIndex]);
+    }
+
+    public void UseActiveAbility()
+    {
+        RefreshActiveAbilityType();
+
+        switch (_activeAbilityType)
+        {
+            case AbilityDroneType.Recon:
+                QuickReleaseReconScan();
+                break;
+            case AbilityDroneType.Decoy:
+                ToggleMaldPathPlanningForSelectedDecoy();
+                break;
+            default:
+                Debug.LogWarning("No selected drone ability is available.");
+                break;
+        }
+    }
+
+    public void BeginReconAbilityTargeting()
+    {
+        if (!TryGetActiveReconSkill(out ReconDroneSkill skill))
+        {
+            Debug.LogWarning("Select a ReconDrone before using recon scan.");
+            return;
+        }
+
+        EndMaldPathPlanning();
+        _activeReconSkill = skill;
+        _isTargetingReconScan = true;
+        SetActiveAbilityType(AbilityDroneType.Recon);
+        UpdateReconRangePreview();
+    }
+
+    public void BeginDecoyAbility()
+    {
+        CancelReconScanTargeting();
+        SetActiveAbilityType(AbilityDroneType.Decoy);
         ToggleMaldPathPlanningForSelectedDecoy();
+    }
+
+    void QuickReleaseReconScan()
+    {
+        if (!TryGetActiveReconSkill(out ReconDroneSkill skill))
+        {
+            Debug.LogWarning("Select a ReconDrone before using recon scan.");
+            return;
+        }
+
+        CancelReconScanTargeting();
+        skill.StartScan();
     }
 
     public void ToggleMaldPathPlanningForSelectedDecoy()
@@ -248,7 +411,7 @@ public class SelectionManager : MonoBehaviour
 
         UpdateMaldPathPreview();
 
-        if (Mouse.current == null || !Mouse.current.rightButton.wasPressedThisFrame)
+        if (Mouse.current == null || !Mouse.current.rightButton.wasPressedThisFrame || IsPointerOverUI())
             return;
 
         if (!TryGetMouseFlightPoint(_activePathDecoy, out Vector3 point))
@@ -265,6 +428,31 @@ public class SelectionManager : MonoBehaviour
 
         CreateMaldWaypointMarker(point);
         UpdateMaldPathPreview();
+    }
+
+    void HandleReconScanTargeting()
+    {
+        if (_activeReconSkill == null)
+        {
+            CancelReconScanTargeting();
+            return;
+        }
+
+        UpdateReconRangePreview();
+
+        if (Mouse.current == null) return;
+
+        if (Mouse.current.rightButton.wasPressedThisFrame)
+        {
+            CancelReconScanTargeting();
+            return;
+        }
+
+        if (!Mouse.current.leftButton.wasPressedThisFrame || IsPointerOverUI())
+            return;
+
+        _activeReconSkill.StartScan();
+        CancelReconScanTargeting();
     }
 
     void DeployMaldPath()
@@ -300,6 +488,13 @@ public class SelectionManager : MonoBehaviour
         ClearMaldWaypointMarkers();
     }
 
+    void CancelReconScanTargeting()
+    {
+        _isTargetingReconScan = false;
+        _activeReconSkill = null;
+        ClearReconRangePreview();
+    }
+
     // ── Left Click / Drag ───────────────────────────────────────────
 
     void HandleLeftClick()
@@ -310,9 +505,24 @@ public class SelectionManager : MonoBehaviour
 
         if (Mouse.current.leftButton.wasPressedThisFrame)
         {
+            _pointerDownStartedOverUI = IsPointerOverUI();
+            if (_pointerDownStartedOverUI)
+            {
+                _boxUI?.Hide();
+                return;
+            }
+
             _dragStart  = mousePos;
             _isDragging = false;
             _clickTime  = Time.unscaledTime;
+        }
+
+        if (_pointerDownStartedOverUI)
+        {
+            if (Mouse.current.leftButton.wasReleasedThisFrame)
+                _pointerDownStartedOverUI = false;
+
+            return;
         }
 
         if (Mouse.current.leftButton.isPressed)
@@ -490,7 +700,9 @@ public class SelectionManager : MonoBehaviour
     {
         if (Mouse.current == null) return;
         if (!Mouse.current.rightButton.wasPressedThisFrame) return;
-        int movableCount = _selected.Count + _selectedShaheds.Count + _selectedRecons.Count;
+        if (IsPointerOverUI()) return;
+
+        int movableCount = _selected.Count + _selectedShaheds.Count + _selectedRecons.Count + _selectedDecoys.Count;
         if (movableCount == 0) return;
 
         Vector2 mousePos = Mouse.current.position.ReadValue();
@@ -540,6 +752,12 @@ public class SelectionManager : MonoBehaviour
             if (_selectedRecons[i] != null)
                 _selectedRecons[i].MoveTo(positions[index]);
         }
+
+        for (int i = 0; i < _selectedDecoys.Count; i++, index++)
+        {
+            if (_selectedDecoys[i] != null)
+                _selectedDecoys[i].MoveTo(positions[index]);
+        }
     }
 
     // ── Selection Helpers ───────────────────────────────────────────
@@ -548,24 +766,28 @@ public class SelectionManager : MonoBehaviour
     {
         _selected.Add(drone);
         drone.SetSelected(true);
+        GameManager.Instance?.AddSelectedDrone(drone);
     }
 
     void Select(ShahedDroneUnit shahed)
     {
         _selectedShaheds.Add(shahed);
         shahed.SetSelected(true);
+        GameManager.Instance?.AddSelectedDrone(shahed);
     }
 
     void Select(ReconDroneUnit recon)
     {
         _selectedRecons.Add(recon);
         recon.SetSelected(true);
+        GameManager.Instance?.AddSelectedDrone(recon);
     }
 
     void Select(DecoyDroneUnit decoy)
     {
         _selectedDecoys.Add(decoy);
         decoy.SetSelected(true);
+        GameManager.Instance?.AddSelectedDrone(decoy);
     }
 
     void Select(TargetableObject target)
@@ -578,24 +800,28 @@ public class SelectionManager : MonoBehaviour
     {
         _selected.Remove(drone);
         drone.SetSelected(false);
+        GameManager.Instance?.RemoveSelectedDrone(drone);
     }
 
     void Deselect(ShahedDroneUnit shahed)
     {
         _selectedShaheds.Remove(shahed);
         shahed.SetSelected(false);
+        GameManager.Instance?.RemoveSelectedDrone(shahed);
     }
 
     void Deselect(ReconDroneUnit recon)
     {
         _selectedRecons.Remove(recon);
         recon.SetSelected(false);
+        GameManager.Instance?.RemoveSelectedDrone(recon);
     }
 
     void Deselect(DecoyDroneUnit decoy)
     {
         _selectedDecoys.Remove(decoy);
         decoy.SetSelected(false);
+        GameManager.Instance?.RemoveSelectedDrone(decoy);
     }
 
     void Deselect(TargetableObject target)
@@ -615,6 +841,45 @@ public class SelectionManager : MonoBehaviour
         _selectedShaheds.Clear();
         _selectedRecons.Clear();
         _selectedDecoys.Clear();
+        GameManager.Instance?.ReplaceSelection(System.Array.Empty<ISelectableDrone>());
+    }
+
+    void SelectSelectableDrone(ISelectableDrone drone)
+    {
+        switch (drone)
+        {
+            case DroneUnit standard when !_selected.Contains(standard):
+                Select(standard);
+                break;
+            case ShahedDroneUnit shahed when !_selectedShaheds.Contains(shahed):
+                Select(shahed);
+                break;
+            case ReconDroneUnit recon when !_selectedRecons.Contains(recon):
+                Select(recon);
+                break;
+            case DecoyDroneUnit decoy when !_selectedDecoys.Contains(decoy):
+                Select(decoy);
+                break;
+        }
+    }
+
+    void DeselectSelectableDrone(ISelectableDrone drone)
+    {
+        switch (drone)
+        {
+            case DroneUnit standard:
+                Deselect(standard);
+                break;
+            case ShahedDroneUnit shahed:
+                Deselect(shahed);
+                break;
+            case ReconDroneUnit recon:
+                Deselect(recon);
+                break;
+            case DecoyDroneUnit decoy:
+                Deselect(decoy);
+                break;
+        }
     }
 
     void DeselectAllTargets()
@@ -703,6 +968,108 @@ public class SelectionManager : MonoBehaviour
         _allShaheds.RemoveAll(d => d == null);
         _allRecons.RemoveAll(d => d == null);
         _allDecoys.RemoveAll(d => d == null);
+    }
+
+    void RefreshActiveAbilityType()
+    {
+        bool hasRecon = IsReconAbilityAvailable;
+        bool hasDecoy = IsDecoyAbilityAvailable;
+
+        if (!hasRecon && !hasDecoy)
+        {
+            SetActiveAbilityType(AbilityDroneType.None);
+            CancelReconScanTargeting();
+            EndMaldPathPlanning();
+            return;
+        }
+
+        if (_activeAbilityType == AbilityDroneType.Recon && hasRecon) return;
+        if (_activeAbilityType == AbilityDroneType.Decoy && hasDecoy) return;
+
+        SetActiveAbilityType(GetFirstAbilityTypeInSelectionOrder());
+    }
+
+    void SetActiveAbilityType(AbilityDroneType abilityType)
+    {
+        _activeAbilityType = abilityType;
+    }
+
+    bool TryGetActiveReconSkill(out ReconDroneSkill skill)
+    {
+        skill = null;
+
+        foreach (ReconDroneUnit recon in _selectedRecons)
+        {
+            if (recon == null) continue;
+
+            skill = recon.GetComponent<ReconDroneSkill>();
+            if (skill != null)
+                return true;
+        }
+
+        return false;
+    }
+
+    AbilityDroneType GetFirstAbilityTypeInSelectionOrder()
+    {
+        if (GameManager.Instance != null)
+        {
+            foreach (ISelectableDrone drone in GameManager.Instance.selectedDrones)
+            {
+                AbilityDroneType type = GetAbilityTypeForDrone(drone);
+                if (type != AbilityDroneType.None)
+                    return type;
+            }
+        }
+
+        if (IsReconAbilityAvailable) return AbilityDroneType.Recon;
+        if (IsDecoyAbilityAvailable) return AbilityDroneType.Decoy;
+        return AbilityDroneType.None;
+    }
+
+    static AbilityDroneType GetAbilityTypeForDrone(ISelectableDrone drone)
+    {
+        switch (drone)
+        {
+            case ReconDroneUnit:
+                return AbilityDroneType.Recon;
+            case DecoyDroneUnit:
+                return AbilityDroneType.Decoy;
+            default:
+                return AbilityDroneType.None;
+        }
+    }
+
+    bool IsPointerOverUI()
+    {
+        if (EventSystem.current == null || Mouse.current == null)
+            return false;
+
+        PointerEventData pointerData = new PointerEventData(EventSystem.current)
+        {
+            position = Mouse.current.position.ReadValue()
+        };
+
+        _uiRaycastResults.Clear();
+        EventSystem.current.RaycastAll(pointerData, _uiRaycastResults);
+
+        foreach (RaycastResult result in _uiRaycastResults)
+        {
+            GameObject hitObject = result.gameObject;
+            if (hitObject == null) continue;
+
+            if (_boxUI != null &&
+                _boxUI.selectionBoxRect != null &&
+                hitObject.transform.IsChildOf(_boxUI.selectionBoxRect))
+            {
+                continue;
+            }
+
+            if (hitObject.GetComponentInParent<Selectable>() != null)
+                return true;
+        }
+
+        return false;
     }
 
     // ── Formation ───────────────────────────────────────────────────
@@ -865,6 +1232,36 @@ public class SelectionManager : MonoBehaviour
         DrawDashedPath(previewPoints, isValid ? maldPathColor : maldPathInvalidColor);
     }
 
+    void UpdateReconRangePreview()
+    {
+        if (_activeReconSkill == null)
+        {
+            ClearReconRangePreview();
+            return;
+        }
+
+        if (_reconRangePreview == null)
+            _reconRangePreview = CreateReconRangePreview();
+
+        int segments = Mathf.Max(12, reconRangeSegments);
+        float radius = Mathf.Max(0.1f, _activeReconSkill.scanRadius);
+        Vector3 center = _activeReconSkill.transform.position;
+
+        _reconRangePreview.gameObject.SetActive(true);
+        _reconRangePreview.startColor = reconRangeColor;
+        _reconRangePreview.endColor = reconRangeColor;
+        _reconRangePreview.startWidth = reconRangeLineWidth;
+        _reconRangePreview.endWidth = reconRangeLineWidth;
+        _reconRangePreview.positionCount = segments + 1;
+
+        for (int i = 0; i <= segments; i++)
+        {
+            float angle = Mathf.PI * 2f * i / segments;
+            Vector3 point = center + new Vector3(Mathf.Cos(angle) * radius, 0f, Mathf.Sin(angle) * radius);
+            _reconRangePreview.SetPosition(i, point);
+        }
+    }
+
     void DrawDashedPath(IReadOnlyList<Vector3> points, Color color)
     {
         int segmentIndex = 0;
@@ -926,6 +1323,21 @@ public class SelectionManager : MonoBehaviour
         return line;
     }
 
+    LineRenderer CreateReconRangePreview()
+    {
+        GameObject preview = new GameObject("Recon Range Preview");
+        preview.transform.SetParent(transform);
+
+        LineRenderer line = preview.AddComponent<LineRenderer>();
+        line.useWorldSpace = true;
+        line.textureMode = LineTextureMode.Stretch;
+        line.alignment = LineAlignment.View;
+        line.material = GetReconRangeMaterial();
+        line.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        line.receiveShadows = false;
+        return line;
+    }
+
     Material GetMaldPathMaterial()
     {
         if (maldPathMaterial != null)
@@ -937,6 +1349,17 @@ public class SelectionManager : MonoBehaviour
         return _defaultMaldPathMaterial;
     }
 
+    Material GetReconRangeMaterial()
+    {
+        if (reconRangeMaterial != null)
+            return reconRangeMaterial;
+
+        if (_defaultReconRangeMaterial == null)
+            _defaultReconRangeMaterial = new Material(Shader.Find("Sprites/Default"));
+
+        return _defaultReconRangeMaterial;
+    }
+
     void ClearMaldPathPreview()
     {
         foreach (var segment in _maldPreviewSegments)
@@ -944,6 +1367,12 @@ public class SelectionManager : MonoBehaviour
             if (segment != null)
                 segment.gameObject.SetActive(false);
         }
+    }
+
+    void ClearReconRangePreview()
+    {
+        if (_reconRangePreview != null)
+            _reconRangePreview.gameObject.SetActive(false);
     }
 
     void CreateMaldWaypointMarker(Vector3 point)

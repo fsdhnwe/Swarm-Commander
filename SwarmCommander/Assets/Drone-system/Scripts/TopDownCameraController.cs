@@ -65,4 +65,12 @@ public class TopDownCameraController : MonoBehaviour
 
         transform.position = pos;
     }
+
+    public void FocusOnWorldPosition(Vector3 worldPosition)
+    {
+        Vector3 pos = transform.position;
+        pos.x = worldPosition.x;
+        pos.z = worldPosition.z;
+        transform.position = pos;
+    }
 }

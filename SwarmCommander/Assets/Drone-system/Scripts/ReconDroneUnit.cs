@@ -4,7 +4,7 @@ using Pathfinding;
 
 [RequireComponent(typeof(Seeker))]
 [RequireComponent(typeof(Collider))]
-public class ReconDroneUnit : MonoBehaviour
+public class ReconDroneUnit : MonoBehaviour, ISelectableDrone
 {
     public enum ReconState { Idle, Move }
 
@@ -12,6 +12,9 @@ public class ReconDroneUnit : MonoBehaviour
     public GameObject selectionIndicator;
     public Color selectedColor = new Color(0f, 1f, 0.5f, 1f);
     public Color hoverColor = Color.white;
+
+    [Header("Selection UI")]
+    public Sprite portraitIcon;
 
     [Header("Movement")]
     public float moveSpeed = 8f;
@@ -55,7 +58,12 @@ public class ReconDroneUnit : MonoBehaviour
     public ReconState State => _state;
     public bool IsSelected { get; private set; }
     public Vector3 CurrentMoveDir => _currentMoveDir;
+    public Sprite PortraitIcon => portraitIcon;
+    public GameObject GameObject => gameObject;
     public event Action<ReconDroneUnit> MoveArrived;
+    public event Action<ISelectableDrone> OnHealthChanged;
+    public event Action<ISelectableDrone> OnDied;
+    public event Action<ISelectableDrone, bool> OnSelectedChanged;
 
     void Awake()
     {
@@ -72,6 +80,13 @@ public class ReconDroneUnit : MonoBehaviour
 
         SetSelectionIndicator(false);
         RefreshOutline();
+
+        DroneHealth health = GetComponent<DroneHealth>();
+        if (health != null)
+        {
+            health.OnHealthChanged += HandleHealthChanged;
+            health.OnDied += HandleDied;
+        }
     }
 
     void Update()
@@ -172,9 +187,24 @@ public class ReconDroneUnit : MonoBehaviour
 
     public void SetSelected(bool selected)
     {
+        if (IsSelected == selected) return;
+
         IsSelected = selected;
         SetSelectionIndicator(selected);
         RefreshOutline();
+        OnSelectedChanged?.Invoke(this, selected);
+    }
+
+    private void HandleHealthChanged(DroneHealth health)
+    {
+        OnHealthChanged?.Invoke(this);
+    }
+
+    private void HandleDied(DroneHealth health)
+    {
+        OnDied?.Invoke(this);
+        if (GameManager.Instance != null)
+            GameManager.Instance.RemoveDroneFromAllGroups(this);
     }
 
     public void SetHovered(bool hovered)

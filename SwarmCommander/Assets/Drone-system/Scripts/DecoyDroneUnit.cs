@@ -1,12 +1,23 @@
 using UnityEngine;
+using System;
 
 [RequireComponent(typeof(Collider))]
-public class DecoyDroneUnit : MonoBehaviour
+public class DecoyDroneUnit : MonoBehaviour, ISelectableDrone
 {
+    public enum DecoyState { Idle, Move }
+
     [Header("Selection Visual")]
     public GameObject selectionIndicator;
     public Color selectedColor = new Color(0f, 1f, 0.5f, 1f);
     public Color hoverColor = Color.white;
+
+    [Header("Movement")]
+    public float moveSpeed = 8f;
+    public float arrivalDist = 1.5f;
+    public float turnSpeed = 240f;
+
+    [Header("Selection UI")]
+    public Sprite portraitIcon;
 
     [Header("Model Correction")]
     public Vector3 modelRotationOffset = Vector3.zero;
@@ -41,14 +52,22 @@ public class DecoyDroneUnit : MonoBehaviour
     private Outline _outline;
     private Renderer[] _renderers;
     private bool _isHovered;
+    private DecoyState _state = DecoyState.Idle;
+    private Vector3 _moveTarget;
 
     public bool IsSelected { get; private set; }
+    public DecoyState State => _state;
     public Vector3 LaunchPosition => maldLaunchPoint != null ? maldLaunchPoint.position : transform.position;
+    public Sprite PortraitIcon => portraitIcon;
+    public GameObject GameObject => gameObject;
+    public event Action<ISelectableDrone> OnHealthChanged;
+    public event Action<ISelectableDrone> OnDied;
+    public event Action<ISelectableDrone, bool> OnSelectedChanged;
 
     void Awake()
     {
         _hoverBasePosition = transform.position;
-        _hoverOffset = Random.Range(0f, Mathf.PI * 2f);
+        _hoverOffset = UnityEngine.Random.Range(0f, Mathf.PI * 2f);
         _outline = GetComponentInChildren<Outline>();
         _renderers = GetComponentsInChildren<Renderer>();
 
@@ -59,11 +78,26 @@ public class DecoyDroneUnit : MonoBehaviour
 
         SetSelectionIndicator(false);
         RefreshOutline();
+
+        DroneHealth health = GetComponent<DroneHealth>();
+        if (health != null)
+        {
+            health.OnHealthChanged += HandleHealthChanged;
+            health.OnDied += HandleDied;
+        }
     }
 
     void Update()
     {
-        UpdateIdleHover();
+        switch (_state)
+        {
+            case DecoyState.Idle:
+                UpdateIdleHover();
+                break;
+            case DecoyState.Move:
+                UpdateMove();
+                break;
+        }
     }
 
     void UpdateIdleHover()
@@ -78,17 +112,63 @@ public class DecoyDroneUnit : MonoBehaviour
             _hoverBasePosition.z);
     }
 
+    void UpdateMove()
+    {
+        Vector3 target = new Vector3(_moveTarget.x, transform.position.y, _moveTarget.z);
+        Vector3 toTarget = target - transform.position;
+        toTarget.y = 0f;
+
+        if (toTarget.magnitude <= arrivalDist)
+        {
+            _hoverBasePosition = new Vector3(_moveTarget.x, transform.position.y, _moveTarget.z);
+            _state = DecoyState.Idle;
+            return;
+        }
+
+        Vector3 moveDir = toTarget.normalized;
+        FaceDirection(moveDir);
+        transform.position += moveDir * moveSpeed * Time.deltaTime;
+    }
+
     public void SetSelected(bool selected)
     {
+        if (IsSelected == selected) return;
+
         IsSelected = selected;
         SetSelectionIndicator(selected);
         RefreshOutline();
+        OnSelectedChanged?.Invoke(this, selected);
+    }
+
+    private void HandleHealthChanged(DroneHealth health)
+    {
+        OnHealthChanged?.Invoke(this);
+    }
+
+    private void HandleDied(DroneHealth health)
+    {
+        OnDied?.Invoke(this);
+        if (GameManager.Instance != null)
+            GameManager.Instance.RemoveDroneFromAllGroups(this);
     }
 
     public void SetHovered(bool hovered)
     {
         _isHovered = hovered;
         RefreshOutline();
+    }
+
+    public void MoveTo(Vector3 worldPosition)
+    {
+        _moveTarget = new Vector3(worldPosition.x, transform.position.y, worldPosition.z);
+        _state = DecoyState.Move;
+    }
+
+    public void SetIdlePosition(Vector3 worldPosition)
+    {
+        transform.position = worldPosition;
+        _hoverBasePosition = worldPosition;
+        _state = DecoyState.Idle;
     }
 
     public bool ContainsScreenPoint(Camera camera, Vector2 screenPoint, float padding = 8f)
@@ -266,5 +346,17 @@ public class DecoyDroneUnit : MonoBehaviour
 
         if (showOutline)
             _outline.OutlineColor = _isHovered ? hoverColor : selectedColor;
+    }
+
+    void FaceDirection(Vector3 direction)
+    {
+        Vector3 flatDir = new Vector3(direction.x, 0f, direction.z);
+        if (flatDir.sqrMagnitude <= 0.001f) return;
+
+        Quaternion targetRot = Quaternion.LookRotation(flatDir.normalized, Vector3.up);
+        transform.rotation = Quaternion.RotateTowards(
+            transform.rotation,
+            targetRot,
+            turnSpeed * Time.deltaTime);
     }
 }

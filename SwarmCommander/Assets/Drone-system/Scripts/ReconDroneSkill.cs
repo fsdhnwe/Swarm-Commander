@@ -11,7 +11,7 @@ public class ReconDroneSkill : MonoBehaviour
     public float scanDuration = 1.5f;
     public float confirmedIntelDuration = 5f;
     public float staleIntelDuration = 10f;
-    public bool scanWhenMoveArrives = true;
+    public bool scanWhenMoveArrives = false;
 
     [Header("Scan Visual Effect")]
     public GameObject scanEffectRoot;
@@ -79,8 +79,7 @@ public class ReconDroneSkill : MonoBehaviour
 
     void OnEnable()
     {
-        if (_reconDrone != null)
-            _reconDrone.MoveArrived += HandleMoveArrived;
+        // Recon scan is now triggered by the ability UI / hotkey only.
     }
 
     void OnDisable()

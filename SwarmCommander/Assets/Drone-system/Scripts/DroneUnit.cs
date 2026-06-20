@@ -4,7 +4,7 @@ using System;
 
 [RequireComponent(typeof(Seeker))]
 [RequireComponent(typeof(Collider))]
-public class DroneUnit : MonoBehaviour
+public class DroneUnit : MonoBehaviour, ISelectableDrone
 {
     public enum DroneState { Idle, Move, Attack, Return }
 
@@ -13,6 +13,9 @@ public class DroneUnit : MonoBehaviour
     public Color selectedColor = new Color(0f, 1f, 0.5f, 1f);
     public Color hoverColor = Color.white;
     public Color normalColor = Color.white;
+
+    [Header("Selection UI")]
+    public Sprite portraitIcon;
 
     [Header("Movement")]
     public float moveSpeed = 8f;
@@ -75,10 +78,15 @@ public class DroneUnit : MonoBehaviour
     private static readonly Collider[] _neighborBuffer = new Collider[32];
 
     public event Action<DroneUnit> MoveArrived;
+    public event Action<ISelectableDrone> OnHealthChanged;
+    public event Action<ISelectableDrone> OnDied;
+    public event Action<ISelectableDrone, bool> OnSelectedChanged;
 
     public DroneState State => _state;
     public bool IsSelected { get; private set; }
     public Vector3 CurrentMoveDir => _currentMoveDir;
+    public Sprite PortraitIcon => portraitIcon;
+    public GameObject GameObject => gameObject;
 
     void Awake()
     {
@@ -96,6 +104,13 @@ public class DroneUnit : MonoBehaviour
         RefreshOutline();
         SetSelectionIndicator(false);
         ApplyColor(normalColor);
+
+        DroneHealth health = GetComponent<DroneHealth>();
+        if (health != null)
+        {
+            health.OnHealthChanged += HandleHealthChanged;
+            health.OnDied += HandleDied;
+        }
     }
 
     void Update()
@@ -353,9 +368,22 @@ public class DroneUnit : MonoBehaviour
 
     public void SetSelected(bool selected)
     {
+        if (IsSelected == selected) return;
+
         IsSelected = selected;
         RefreshOutline();
         SetSelectionIndicator(selected);
+        OnSelectedChanged?.Invoke(this, selected);
+    }
+
+    private void HandleHealthChanged(DroneHealth health)
+    {
+        OnHealthChanged?.Invoke(this);
+    }
+
+    private void HandleDied(DroneHealth health)
+    {
+        OnDied?.Invoke(this);
     }
 
     public void SetHovered(bool hovered)

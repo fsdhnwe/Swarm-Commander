@@ -1,9 +1,10 @@
 using UnityEngine;
 using Pathfinding;
+using System;
 
 [RequireComponent(typeof(Seeker))]
 [RequireComponent(typeof(Collider))]
-public class ShahedDroneUnit : MonoBehaviour
+public class ShahedDroneUnit : MonoBehaviour, ISelectableDrone
 {
     public enum ShahedState { Idle, Move, Attack }
 
@@ -11,6 +12,9 @@ public class ShahedDroneUnit : MonoBehaviour
     public GameObject selectionIndicator;
     public Color selectedColor = new Color(0f, 1f, 0.5f, 1f);
     public Color hoverColor = Color.white;
+
+    [Header("Selection UI")]
+    public Sprite portraitIcon;
 
     [Header("Movement")]
     public float moveSpeed = 8f;
@@ -58,12 +62,17 @@ public class ShahedDroneUnit : MonoBehaviour
 
     public ShahedState State => _state;
     public bool IsSelected { get; private set; }
+    public Sprite PortraitIcon => portraitIcon;
+    public GameObject GameObject => gameObject;
+    public event Action<ISelectableDrone> OnHealthChanged;
+    public event Action<ISelectableDrone> OnDied;
+    public event Action<ISelectableDrone, bool> OnSelectedChanged;
 
     void Awake()
     {
         _seeker = GetComponent<Seeker>();
         _hoverBasePosition = transform.position;
-        _hoverOffset = Random.Range(0f, Mathf.PI * 2f);
+        _hoverOffset = UnityEngine.Random.Range(0f, Mathf.PI * 2f);
         _outline = GetComponentInChildren<Outline>();
         _renderers = GetComponentsInChildren<Renderer>();
 
@@ -72,6 +81,13 @@ public class ShahedDroneUnit : MonoBehaviour
 
         SetSelectionIndicator(false);
         RefreshOutline();
+
+        DroneHealth health = GetComponent<DroneHealth>();
+        if (health != null)
+        {
+            health.OnHealthChanged += HandleHealthChanged;
+            health.OnDied += HandleDied;
+        }
     }
 
     void Update()
@@ -205,9 +221,24 @@ public class ShahedDroneUnit : MonoBehaviour
 
     public void SetSelected(bool selected)
     {
+        if (IsSelected == selected) return;
+
         IsSelected = selected;
         SetSelectionIndicator(selected);
         RefreshOutline();
+        OnSelectedChanged?.Invoke(this, selected);
+    }
+
+    private void HandleHealthChanged(DroneHealth health)
+    {
+        OnHealthChanged?.Invoke(this);
+    }
+
+    private void HandleDied(DroneHealth health)
+    {
+        OnDied?.Invoke(this);
+        if (GameManager.Instance != null)
+            GameManager.Instance.RemoveDroneFromAllGroups(this);
     }
 
     public void SetHovered(bool hovered)
@@ -274,6 +305,10 @@ public class ShahedDroneUnit : MonoBehaviour
 
         if (explosionEffectPrefab != null)
             Instantiate(explosionEffectPrefab, explosionPosition, Quaternion.identity);
+
+        OnDied?.Invoke(this);
+        if (GameManager.Instance != null)
+            GameManager.Instance.RemoveDroneFromAllGroups(this);
 
         Destroy(gameObject);
     }
