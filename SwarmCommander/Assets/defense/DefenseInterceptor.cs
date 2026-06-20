@@ -91,7 +91,10 @@ public class DefenseInterceptor : MonoBehaviour
                 }
 
                 float dist = Vector3.Distance(transform.position, currentTarget.position);
-                if (dist <= weaponData.fireRange)
+                // 雷達鎖定目標時，射程套用加成倍率
+                float effectiveFireRange = weaponData.fireRange *
+                    (RadarStation2.IsDroneDetected(currentTarget) ? RadarStation2.GetFireRangeBonus() : 1f);
+                if (dist <= effectiveFireRange)
                 {
                     RotateTowards(currentTarget.position);
 
@@ -199,11 +202,16 @@ public class DefenseInterceptor : MonoBehaviour
         return weaponData.reactionDelayBase * multiplier;
     }
 
+    // 通訊完整度越低，瞄準誤差越大 (最多放大到約5倍)
+    // 雷達鎖定目標時，瞄準誤差套用降低倍率
     private float GetAimError()
     {
         float comms = CommandNetwork.Instance != null ? CommandNetwork.Instance.commsIntegrity : 1f;
         float worstCase = weaponData.baseAimError * 5f;
-        return Mathf.Lerp(worstCase, weaponData.baseAimError, comms);
+        float baseError = Mathf.Lerp(worstCase, weaponData.baseAimError, comms);
+        if (currentTarget != null && RadarStation2.IsDroneDetected(currentTarget))
+            baseError *= RadarStation2.GetAimErrorMultiplier();
+        return baseError;
     }
 
     private void FireAtTarget()
