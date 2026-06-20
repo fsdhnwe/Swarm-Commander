@@ -219,10 +219,6 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
-    - target: {fileID: -5640320150514657536, guid: c49d745ab3f70114184d1803bdd536c2, type: 3}
-      propertyPath: 'm_Materials.Array.data[0]'
-      value: 
-      objectReference: {fileID: 2100000, guid: 5315de0feac67e84ca36dfe50b8882e1, type: 2}
     - target: {fileID: 1865178115824512618, guid: 9f7348320183ba745bf10e60a4941a50, type: 3}
       propertyPath: maxHP
       value: 400
@@ -283,6 +279,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: SAM site (1)
       objectReference: {fileID: 0}
+    - target: {fileID: -5640320150514657536, guid: c49d745ab3f70114184d1803bdd536c2, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 5315de0feac67e84ca36dfe50b8882e1, type: 2}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -361,6 +361,10 @@ PrefabInstance:
     - target: {fileID: 5681357374053839801, guid: 3e0a439871afce441a1ac9666d04d39d, type: 3}
       propertyPath: attackRange
       value: 30
+      objectReference: {fileID: 0}
+    - target: {fileID: 7310402016146820012, guid: 3e0a439871afce441a1ac9666d04d39d, type: 3}
+      propertyPath: maxHP
+      value: 100
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -977,7 +981,8 @@ GameObject:
   - component: {fileID: 554695676}
   - component: {fileID: 554695675}
   - component: {fileID: 554695674}
-  m_Layer: 0
+  - component: {fileID: 554695680}
+  m_Layer: 7
   m_Name: Communication center
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1102,12 +1107,31 @@ Transform:
   m_GameObject: {fileID: 554695673}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 45.35192, y: 18.3, z: 114.6}
+  m_LocalPosition: {x: 45.35192, y: 25.5, z: 114.6}
   m_LocalScale: {x: 6, y: 6, z: 6}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 656520960}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &554695680
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 554695673}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8a77ed103197bd74a939b3879300e00b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TargetableObject
+  selectionIndicator: {fileID: 0}
+  outlineColor: {r: 1, g: 0.35, b: 0.2, a: 1}
+  hoverColor: {r: 1, g: 1, b: 1, a: 1}
+  maxHealth: 125
+  aimPoint: {fileID: 656520960}
+  destroyOnDeath: 1
 --- !u!1001 &600266814
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -1266,6 +1290,37 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &656520959
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 656520960}
+  m_Layer: 7
+  m_Name: GameObject
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &656520960
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 656520959}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0.029}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 554695679}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &680590549 stripped
 GameObject:
@@ -1938,6 +1993,10 @@ PrefabInstance:
       propertyPath: attackRange
       value: 30
       objectReference: {fileID: 0}
+    - target: {fileID: 7310402016146820012, guid: 3e0a439871afce441a1ac9666d04d39d, type: 3}
+      propertyPath: maxHP
+      value: 100
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -2055,6 +2114,10 @@ PrefabInstance:
     - target: {fileID: 5681357374053839801, guid: 3e0a439871afce441a1ac9666d04d39d, type: 3}
       propertyPath: attackRange
       value: 30
+      objectReference: {fileID: 0}
+    - target: {fileID: 7310402016146820012, guid: 3e0a439871afce441a1ac9666d04d39d, type: 3}
+      propertyPath: maxHP
+      value: 100
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -2810,6 +2873,18 @@ PrefabInstance:
     - target: {fileID: 6498666748210262117, guid: 9f7348320183ba745bf10e60a4941a50, type: 3}
       propertyPath: m_Name
       value: SAM site
+      objectReference: {fileID: 0}
+    - target: {fileID: 6916040041076283738, guid: 9f7348320183ba745bf10e60a4941a50, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -0.0002
+      objectReference: {fileID: 0}
+    - target: {fileID: 6916040041076283738, guid: 9f7348320183ba745bf10e60a4941a50, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0.0001
+      objectReference: {fileID: 0}
+    - target: {fileID: 6916040041076283738, guid: 9f7348320183ba745bf10e60a4941a50, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: -0.0002
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

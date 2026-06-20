@@ -20,6 +20,6 @@ MonoBehaviour:
   damage: 100
   projectileSpeed: 15
   projectilePrefab: {fileID: 8355905775383150658, guid: 50d2584d5e6f8614cb695bd831895449, type: 3}
-  isGuided: 1
+  isGuided: 0
   reactionDelayBase: 1
   baseAimError: 0
