@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-[RequireComponent(typeof(DroneUnit))]
+[RequireComponent(typeof(ReconDroneUnit))]
 public class ReconDroneSkill : MonoBehaviour
 {
     [Header("Scan")]
@@ -31,7 +31,7 @@ public class ReconDroneSkill : MonoBehaviour
 
     private readonly Collider[] _scanBuffer = new Collider[128];
     private readonly HashSet<EnemyIntelVisibility> _revealedThisScan = new HashSet<EnemyIntelVisibility>();
-    private DroneUnit _drone;
+    private ReconDroneUnit _reconDrone;
     private Coroutine _scanRoutine;
     private MaterialPropertyBlock _mpb;
 
@@ -39,7 +39,7 @@ public class ReconDroneSkill : MonoBehaviour
 
     void Awake()
     {
-        _drone = GetComponent<DroneUnit>();
+        _reconDrone = GetComponent<ReconDroneUnit>();
 
         if (scanEffectRoot == null && scanEffectRenderer != null)
             scanEffectRoot = scanEffectRenderer.gameObject;
@@ -79,14 +79,14 @@ public class ReconDroneSkill : MonoBehaviour
 
     void OnEnable()
     {
-        if (_drone != null)
-            _drone.MoveArrived += HandleMoveArrived;
+        if (_reconDrone != null)
+            _reconDrone.MoveArrived += HandleMoveArrived;
     }
 
     void OnDisable()
     {
-        if (_drone != null)
-            _drone.MoveArrived -= HandleMoveArrived;
+        if (_reconDrone != null)
+            _reconDrone.MoveArrived -= HandleMoveArrived;
     }
 
     public void StartScan()
@@ -100,7 +100,7 @@ public class ReconDroneSkill : MonoBehaviour
         _scanRoutine = StartCoroutine(ScanRoutine());
     }
 
-    void HandleMoveArrived(DroneUnit drone)
+    void HandleMoveArrived(ReconDroneUnit drone)
     {
         if (scanWhenMoveArrives)
             StartScan();

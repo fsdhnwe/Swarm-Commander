@@ -17,6 +17,15 @@ public class ShahedDroneUnit : MonoBehaviour
     public float nextWaypointDist = 1f;
     public float arrivalDist = 1.5f;
     public float rotationSpeed = 8f;
+    public float turnSpeed = 150f;
+    public float fullSpeedTurnAngle = 25f;
+    public float turnInPlaceAngle = 120f;
+
+    [Header("Attack Spacing")]
+    public float neighborRadius = 8f;
+    public LayerMask droneLayer = 1 << 6;
+    public float separationWeight = 2f;
+    public float separationDistance = 6f;
 
     [Header("Model Correction")]
     public Vector3 modelRotationOffset = Vector3.zero;
@@ -44,6 +53,8 @@ public class ShahedDroneUnit : MonoBehaviour
     private Outline _outline;
     private Renderer[] _renderers;
     private bool _isHovered;
+
+    private static readonly Collider[] _neighborBuffer = new Collider[32];
 
     public ShahedState State => _state;
     public bool IsSelected { get; private set; }
@@ -106,8 +117,9 @@ public class ShahedDroneUnit : MonoBehaviour
         waypoint.y = transform.position.y;
 
         Vector3 moveDir = (waypoint - transform.position).normalized;
-        transform.position += moveDir * moveSpeed * Time.deltaTime;
         FaceDirection(moveDir);
+        float speedFactor = GetTurnSpeedFactor(moveDir);
+        transform.position += moveDir * moveSpeed * speedFactor * Time.deltaTime;
 
         if (Vector3.Distance(transform.position, waypoint) < nextWaypointDist)
             _waypointIndex++;
@@ -134,9 +146,10 @@ public class ShahedDroneUnit : MonoBehaviour
             return;
         }
 
-        Vector3 moveDir = toTarget.normalized;
-        transform.position += moveDir * moveSpeed * Time.deltaTime;
+        Vector3 moveDir = GetAttackMoveDirection(toTarget.normalized);
         FaceDirection(moveDir);
+        float speedFactor = GetTurnSpeedFactor(moveDir);
+        transform.position += moveDir * moveSpeed * speedFactor * Time.deltaTime;
     }
 
     public void MoveTo(Vector3 worldPosition)
@@ -155,6 +168,39 @@ public class ShahedDroneUnit : MonoBehaviour
 
         _attackTarget = target;
         ChangeState(ShahedState.Attack);
+    }
+
+    Vector3 GetAttackMoveDirection(Vector3 targetDirection)
+    {
+        Vector3 blendedDir = targetDirection + ComputeSeparation() * separationWeight;
+
+        if (blendedDir.sqrMagnitude < 0.0001f)
+            blendedDir = targetDirection;
+
+        return blendedDir.normalized;
+    }
+
+    Vector3 ComputeSeparation()
+    {
+        Vector3 result = Vector3.zero;
+        int count = Physics.OverlapSphereNonAlloc(
+            transform.position, neighborRadius, _neighborBuffer, droneLayer);
+
+        for (int i = 0; i < count; i++)
+        {
+            Collider other = _neighborBuffer[i];
+            if (other == null) continue;
+            if (other.gameObject == gameObject) continue;
+
+            Vector3 toSelf = transform.position - other.transform.position;
+            float dist = toSelf.magnitude;
+
+            if (dist > 0f && dist < separationDistance)
+                result += toSelf.normalized * (separationDistance - dist) / separationDistance;
+        }
+
+        result.y = 0f;
+        return result;
     }
 
     public void SetSelected(bool selected)
@@ -262,10 +308,24 @@ public class ShahedDroneUnit : MonoBehaviour
         if (flatDir.sqrMagnitude <= 0.001f) return;
 
         Quaternion targetRot = Quaternion.LookRotation(flatDir.normalized, Vector3.up);
-        transform.rotation = Quaternion.Slerp(
+        transform.rotation = Quaternion.RotateTowards(
             transform.rotation,
             targetRot,
-            rotationSpeed * Time.deltaTime);
+            turnSpeed * Time.deltaTime);
+    }
+
+    float GetTurnSpeedFactor(Vector3 desiredDirection)
+    {
+        Vector3 flatDir = new Vector3(desiredDirection.x, 0f, desiredDirection.z);
+        if (flatDir.sqrMagnitude <= 0.001f) return 0f;
+
+        Vector3 forward = transform.forward;
+        forward.y = 0f;
+        if (forward.sqrMagnitude <= 0.001f) return 1f;
+
+        float angle = Vector3.Angle(forward.normalized, flatDir.normalized);
+        float stopAngle = Mathf.Max(fullSpeedTurnAngle + 0.01f, turnInPlaceAngle);
+        return Mathf.InverseLerp(stopAngle, fullSpeedTurnAngle, angle);
     }
 
     void SetSelectionIndicator(bool show)

@@ -250,8 +250,8 @@ MonoBehaviour:
   damage: 50
   target: {fileID: 0}
   rotationOffset: {x: 0, y: 90, z: 0}
-  hitEffectPrefab: {fileID: 0}
+  hitEffectPrefab: {fileID: 5162910912013668194, guid: cf82839c411151342a7b2337bda9fb34, type: 3}
   trailTime: 0.5
   trailStartWidth: 0.15
   trailEndWidth: 0
-  trailColor: {r: 0.21698111, g: 0.21698111, b: 0.21698111, a: 1}
+  trailColor: {r: 1, g: 0.49685895, b: 0, a: 1}

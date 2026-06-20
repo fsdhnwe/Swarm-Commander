@@ -14,6 +14,7 @@ GameObject:
   - component: {fileID: 1543333428420688192}
   - component: {fileID: 6289942150150903163}
   - component: {fileID: 7310402016146822012}
+  - component: {fileID: 6043916253523001183}
   m_Layer: 6
   m_Name: ShahedDrone
   m_TagString: PlayerDrone
@@ -153,6 +154,25 @@ MonoBehaviour:
   m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::DroneHealth
   maxHP: 50
+--- !u!114 &6043916253523001183
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9015931966911867314}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4d45b83ad93f4b1ca731ef028b7350d2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DroneDetection
+  targetLayer:
+    serializedVersion: 2
+    m_Bits: 128
+  detectionRadius: 18
+  detectionInterval: 0.25
+  confirmedIntelDuration: 5
+  staleIntelDuration: 10
 --- !u!1001 &8240312081376701153
 PrefabInstance:
   m_ObjectHideFlags: 0

@@ -21,6 +21,9 @@ public class DroneUnit : MonoBehaviour
 
     [Header("Rotation")]
     public float rotationSpeed = 8f;
+    public float turnSpeed = 240f;
+    public float fullSpeedTurnAngle = 25f;
+    public float turnInPlaceAngle = 120f;
 
     [Header("Model Correction")]
     public Vector3 modelRotationOffset = Vector3.zero;
@@ -158,11 +161,14 @@ public class DroneUnit : MonoBehaviour
             blendedDir = seekDir;
 
         blendedDir.Normalize();
-        _currentMoveDir = blendedDir;
-        transform.position += blendedDir * moveSpeed * Time.deltaTime;
-
         FaceDirection(blendedDir);
-        SmoothTilt(seekDir);
+
+        float speedFactor = GetTurnSpeedFactor(blendedDir);
+        Vector3 moveStep = blendedDir * moveSpeed * speedFactor * Time.deltaTime;
+        _currentMoveDir = speedFactor > 0.01f ? blendedDir : Vector3.zero;
+        transform.position += moveStep;
+
+        SmoothTilt(seekDir * speedFactor);
 
         if (Vector3.Distance(transform.position, waypoint) < nextWaypointDist)
             _waypointIndex++;
@@ -184,16 +190,19 @@ public class DroneUnit : MonoBehaviour
 
         if (distance > attackRange)
         {
-            Vector3 moveDir = dir.normalized;
-            _currentMoveDir = moveDir;
-            transform.position += moveDir * moveSpeed * Time.deltaTime;
+            Vector3 moveDir = GetAttackMoveDirection(dir.normalized);
             FaceDirection(moveDir);
-            SmoothTilt(moveDir);
+
+            float speedFactor = GetTurnSpeedFactor(moveDir);
+            _currentMoveDir = speedFactor > 0.01f ? moveDir : Vector3.zero;
+            transform.position += moveDir * moveSpeed * speedFactor * Time.deltaTime;
+            SmoothTilt(moveDir * speedFactor);
             return;
         }
 
         FaceDirection(flatDir);
         _currentMoveDir = Vector3.zero;
+        ApplyAttackSpacing();
         SmoothTilt(Vector3.zero);
 
         if (Time.time < _nextAttackTime) return;
@@ -271,6 +280,26 @@ public class DroneUnit : MonoBehaviour
         return avgDir.normalized;
     }
 
+    Vector3 GetAttackMoveDirection(Vector3 targetDirection)
+    {
+        Vector3 blendedDir = targetDirection + ComputeSeparation() * separationWeight;
+
+        if (blendedDir.sqrMagnitude < 0.0001f)
+            blendedDir = targetDirection;
+
+        return blendedDir.normalized;
+    }
+
+    void ApplyAttackSpacing()
+    {
+        Vector3 separation = ComputeSeparation();
+        if (separation.sqrMagnitude <= 0.0001f) return;
+
+        Vector3 spacingDir = separation.normalized;
+        _currentMoveDir = spacingDir;
+        transform.position += spacingDir * moveSpeed * 0.5f * Time.deltaTime;
+    }
+
     public void MoveTo(Vector3 worldPosition)
     {
         _attackTarget = null;
@@ -287,8 +316,12 @@ public class DroneUnit : MonoBehaviour
     {
         if (target == null || !target.IsAlive || !target.HasActionableIntel) return;
 
+        bool sameTarget = _attackTarget == target && _state == DroneState.Attack;
         _attackTarget = target;
-        _nextAttackTime = 0f;
+
+        if (!sameTarget && _nextAttackTime < Time.time)
+            _nextAttackTime = 0f;
+
         ChangeState(DroneState.Attack);
     }
 
@@ -363,7 +396,21 @@ public class DroneUnit : MonoBehaviour
         transform.rotation = Quaternion.RotateTowards(
             transform.rotation,
             targetRot,
-            rotationSpeed * 100f * Time.deltaTime);
+            turnSpeed * Time.deltaTime);
+    }
+
+    float GetTurnSpeedFactor(Vector3 desiredDirection)
+    {
+        Vector3 flatDir = new Vector3(desiredDirection.x, 0f, desiredDirection.z);
+        if (flatDir.sqrMagnitude <= 0.001f) return 0f;
+
+        Vector3 forward = transform.forward;
+        forward.y = 0f;
+        if (forward.sqrMagnitude <= 0.001f) return 1f;
+
+        float angle = Vector3.Angle(forward.normalized, flatDir.normalized);
+        float stopAngle = Mathf.Max(fullSpeedTurnAngle + 0.01f, turnInPlaceAngle);
+        return Mathf.InverseLerp(stopAngle, fullSpeedTurnAngle, angle);
     }
 
     void SmoothTilt(Vector3 moveDirection)

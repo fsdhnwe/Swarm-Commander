@@ -27,6 +27,12 @@ public class DecoyDroneUnit : MonoBehaviour
     public float maldFallDuration = 2f;
     public float maldFallRotationSpeed = 240f;
 
+    [Header("MALD Defense Targeting")]
+    public bool makeMaldTargetableByDefense = true;
+    public bool addMaldColliderIfMissing = true;
+    public bool addMaldHealthIfMissing = true;
+    public bool addMaldRigidbodyIfMissing = true;
+
     [Header("Visual Body")]
     public Transform bodyTransform;
 
@@ -172,6 +178,8 @@ public class DecoyDroneUnit : MonoBehaviour
         }
 
         GameObject mald = Instantiate(maldPrefab, LaunchPosition, transform.rotation);
+        ConfigureMaldDefenseTarget(mald);
+
         MALDPathFollower follower = mald.GetComponent<MALDPathFollower>();
         if (follower == null)
             follower = mald.AddComponent<MALDPathFollower>();
@@ -184,6 +192,63 @@ public class DecoyDroneUnit : MonoBehaviour
         follower.fallDuration = maldFallDuration;
         follower.fallRotationSpeed = maldFallRotationSpeed;
         follower.SetPath(waypoints);
+    }
+
+    void ConfigureMaldDefenseTarget(GameObject mald)
+    {
+        if (!makeMaldTargetableByDefense || mald == null) return;
+
+        mald.tag = "PlayerDrone";
+
+        if (mald.layer == 0)
+            mald.layer = gameObject.layer;
+
+        if (addMaldColliderIfMissing && mald.GetComponentInChildren<Collider>() == null)
+            AddColliderFromVisualBounds(mald);
+
+        if (addMaldRigidbodyIfMissing && mald.GetComponent<Rigidbody>() == null)
+        {
+            Rigidbody rb = mald.AddComponent<Rigidbody>();
+            rb.useGravity = false;
+            rb.isKinematic = true;
+        }
+
+        if (addMaldHealthIfMissing && mald.GetComponentInParent<DroneHealth>() == null)
+            mald.AddComponent<DroneHealth>();
+    }
+
+    void AddColliderFromVisualBounds(GameObject mald)
+    {
+        BoxCollider box = mald.AddComponent<BoxCollider>();
+        MeshFilter meshFilter = mald.GetComponentInChildren<MeshFilter>();
+
+        if (meshFilter != null && meshFilter.sharedMesh != null && meshFilter.transform == mald.transform)
+        {
+            Bounds meshBounds = meshFilter.sharedMesh.bounds;
+            box.center = meshBounds.center;
+            box.size = meshBounds.size;
+            return;
+        }
+
+        Renderer[] visualRenderers = mald.GetComponentsInChildren<Renderer>();
+        if (visualRenderers == null || visualRenderers.Length == 0) return;
+
+        Bounds worldBounds = visualRenderers[0].bounds;
+        for (int i = 1; i < visualRenderers.Length; i++)
+            worldBounds.Encapsulate(visualRenderers[i].bounds);
+
+        Vector3 scale = mald.transform.lossyScale;
+        box.center = mald.transform.InverseTransformPoint(worldBounds.center);
+        box.size = new Vector3(
+            SafeDivide(worldBounds.size.x, scale.x),
+            SafeDivide(worldBounds.size.y, scale.y),
+            SafeDivide(worldBounds.size.z, scale.z));
+    }
+
+    float SafeDivide(float value, float divisor)
+    {
+        if (Mathf.Abs(divisor) < 0.0001f) return value;
+        return Mathf.Abs(value / divisor);
     }
 
     void SetSelectionIndicator(bool show)

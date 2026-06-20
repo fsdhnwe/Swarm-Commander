@@ -41,16 +41,19 @@ public class SelectionManager : MonoBehaviour
     // ── internal state ──────────────────────────────────────────────
     private readonly List<DroneUnit> _selected = new();
     private readonly List<ShahedDroneUnit> _selectedShaheds = new();
+    private readonly List<ReconDroneUnit> _selectedRecons = new();
     private readonly List<DecoyDroneUnit> _selectedDecoys = new();
     private readonly List<TargetableObject> _selectedTargets = new();
     private readonly List<DroneUnit> _allDrones = new();
     private readonly List<ShahedDroneUnit> _allShaheds = new();
+    private readonly List<ReconDroneUnit> _allRecons = new();
     private readonly List<DecoyDroneUnit> _allDecoys = new();
 
     private Vector2 _dragStart;   // screen space
     private bool    _isDragging;
     private DroneUnit _hoveredDrone;
     private ShahedDroneUnit _hoveredShahed;
+    private ReconDroneUnit _hoveredRecon;
     private DecoyDroneUnit _hoveredDecoy;
     private TargetableObject _hoveredTarget;
     private DecoyDroneUnit _activePathDecoy;
@@ -86,6 +89,9 @@ public class SelectionManager : MonoBehaviour
         foreach (var d in FindObjectsByType<ShahedDroneUnit>())
             _allShaheds.Add(d);
 
+        foreach (var d in FindObjectsByType<ReconDroneUnit>())
+            _allRecons.Add(d);
+
         foreach (var d in FindObjectsByType<DecoyDroneUnit>())
             _allDecoys.Add(d);
     }
@@ -93,6 +99,7 @@ public class SelectionManager : MonoBehaviour
     /// <summary>Call this after spawning a new drone at runtime.</summary>
     public void RegisterDrone(DroneUnit drone) => _allDrones.Add(drone);
     public void RegisterShahed(ShahedDroneUnit shahed) => _allShaheds.Add(shahed);
+    public void RegisterRecon(ReconDroneUnit recon) => _allRecons.Add(recon);
     public void RegisterDecoy(DecoyDroneUnit decoy) => _allDecoys.Add(decoy);
 
     /// <summary>Call before destroying a drone.</summary>
@@ -106,6 +113,12 @@ public class SelectionManager : MonoBehaviour
     {
         _allShaheds.Remove(shahed);
         _selectedShaheds.Remove(shahed);
+    }
+
+    public void UnregisterRecon(ReconDroneUnit recon)
+    {
+        _allRecons.Remove(recon);
+        _selectedRecons.Remove(recon);
     }
 
     public void UnregisterDecoy(DecoyDroneUnit decoy)
@@ -140,6 +153,7 @@ public class SelectionManager : MonoBehaviour
         {
             SetHoveredDrone(null);
             SetHoveredShahed(null);
+            SetHoveredRecon(null);
             SetHoveredDecoy(null);
             SetHoveredTarget(null);
             return;
@@ -150,6 +164,7 @@ public class SelectionManager : MonoBehaviour
 
         DroneUnit hoveredDrone = null;
         ShahedDroneUnit hoveredShahed = null;
+        ReconDroneUnit hoveredRecon = null;
         DecoyDroneUnit hoveredDecoy = null;
         TargetableObject hoveredTarget = null;
 
@@ -159,16 +174,21 @@ public class SelectionManager : MonoBehaviour
             if (hoveredDrone == null)
                 hoveredShahed = droneHit.collider.GetComponentInParent<ShahedDroneUnit>();
             if (hoveredDrone == null && hoveredShahed == null)
+                hoveredRecon = droneHit.collider.GetComponentInParent<ReconDroneUnit>();
+            if (hoveredDrone == null && hoveredShahed == null && hoveredRecon == null)
                 hoveredDecoy = droneHit.collider.GetComponentInParent<DecoyDroneUnit>();
         }
 
-        if (hoveredDrone == null && hoveredShahed == null && hoveredDecoy == null)
+        if (hoveredDrone == null && hoveredShahed == null && hoveredRecon == null && hoveredDecoy == null)
             hoveredShahed = FindShahedAtScreenPoint(mousePos);
 
-        if (hoveredDrone == null && hoveredShahed == null && hoveredDecoy == null)
+        if (hoveredDrone == null && hoveredShahed == null && hoveredRecon == null && hoveredDecoy == null)
+            hoveredRecon = FindReconAtScreenPoint(mousePos);
+
+        if (hoveredDrone == null && hoveredShahed == null && hoveredRecon == null && hoveredDecoy == null)
             hoveredDecoy = FindDecoyAtScreenPoint(mousePos);
 
-        if (hoveredDrone == null && hoveredShahed == null && hoveredDecoy == null &&
+        if (hoveredDrone == null && hoveredShahed == null && hoveredRecon == null && hoveredDecoy == null &&
             Physics.Raycast(ray, out RaycastHit targetHit, 1000f, targetLayer))
         {
             hoveredTarget = targetHit.collider.GetComponentInParent<TargetableObject>();
@@ -178,6 +198,7 @@ public class SelectionManager : MonoBehaviour
 
         SetHoveredDrone(hoveredDrone);
         SetHoveredShahed(hoveredShahed);
+        SetHoveredRecon(hoveredRecon);
         SetHoveredDecoy(hoveredDecoy);
         SetHoveredTarget(hoveredTarget);
     }
@@ -332,6 +353,7 @@ public class SelectionManager : MonoBehaviour
         Ray ray = gameCamera.ScreenPointToRay(screenPos);
         DroneUnit clickedDrone = null;
         ShahedDroneUnit clickedShahed = null;
+        ReconDroneUnit clickedRecon = null;
         DecoyDroneUnit clickedDecoy = null;
 
         if (Physics.Raycast(ray, out RaycastHit hit, 1000f, droneLayer))
@@ -339,16 +361,21 @@ public class SelectionManager : MonoBehaviour
             clickedDrone = hit.collider.GetComponentInParent<DroneUnit>();
             clickedShahed = hit.collider.GetComponentInParent<ShahedDroneUnit>();
             if (clickedShahed == null)
+                clickedRecon = hit.collider.GetComponentInParent<ReconDroneUnit>();
+            if (clickedShahed == null && clickedRecon == null)
                 clickedDecoy = hit.collider.GetComponentInParent<DecoyDroneUnit>();
         }
 
-        if (clickedDrone == null && clickedShahed == null && clickedDecoy == null)
+        if (clickedDrone == null && clickedShahed == null && clickedRecon == null && clickedDecoy == null)
             clickedShahed = FindShahedAtScreenPoint(screenPos);
 
-        if (clickedDrone == null && clickedShahed == null && clickedDecoy == null)
+        if (clickedDrone == null && clickedShahed == null && clickedRecon == null && clickedDecoy == null)
+            clickedRecon = FindReconAtScreenPoint(screenPos);
+
+        if (clickedDrone == null && clickedShahed == null && clickedRecon == null && clickedDecoy == null)
             clickedDecoy = FindDecoyAtScreenPoint(screenPos);
 
-        if (clickedDrone != null || clickedShahed != null || clickedDecoy != null)
+        if (clickedDrone != null || clickedShahed != null || clickedRecon != null || clickedDecoy != null)
         {
 
             if (!additive)
@@ -365,6 +392,10 @@ public class SelectionManager : MonoBehaviour
                 Select(clickedShahed);
             else if (clickedShahed != null && additive)
                 Deselect(clickedShahed);
+            else if (clickedRecon != null && !_selectedRecons.Contains(clickedRecon))
+                Select(clickedRecon);
+            else if (clickedRecon != null && additive)
+                Deselect(clickedRecon);
             else if (clickedDecoy != null && !_selectedDecoys.Contains(clickedDecoy))
                 Select(clickedDecoy);
             else if (clickedDecoy != null && additive)
@@ -430,6 +461,18 @@ public class SelectionManager : MonoBehaviour
             }
         }
 
+        foreach (var recon in _allRecons)
+        {
+            if (recon == null) continue;
+
+            Vector3 screenPoint = gameCamera.WorldToScreenPoint(recon.transform.position);
+            if (screenRect.Contains(screenPoint, true))
+            {
+                if (!_selectedRecons.Contains(recon))
+                    Select(recon);
+            }
+        }
+
         foreach (var decoy in _allDecoys)
         {
             Vector3 screenPoint = gameCamera.WorldToScreenPoint(decoy.transform.position);
@@ -447,7 +490,7 @@ public class SelectionManager : MonoBehaviour
     {
         if (Mouse.current == null) return;
         if (!Mouse.current.rightButton.wasPressedThisFrame) return;
-        int movableCount = _selected.Count + _selectedShaheds.Count;
+        int movableCount = _selected.Count + _selectedShaheds.Count + _selectedRecons.Count;
         if (movableCount == 0) return;
 
         Vector2 mousePos = Mouse.current.position.ReadValue();
@@ -491,6 +534,12 @@ public class SelectionManager : MonoBehaviour
             if (_selectedShaheds[i] != null)
                 _selectedShaheds[i].MoveTo(positions[index]);
         }
+
+        for (int i = 0; i < _selectedRecons.Count; i++, index++)
+        {
+            if (_selectedRecons[i] != null)
+                _selectedRecons[i].MoveTo(positions[index]);
+        }
     }
 
     // ── Selection Helpers ───────────────────────────────────────────
@@ -505,6 +554,12 @@ public class SelectionManager : MonoBehaviour
     {
         _selectedShaheds.Add(shahed);
         shahed.SetSelected(true);
+    }
+
+    void Select(ReconDroneUnit recon)
+    {
+        _selectedRecons.Add(recon);
+        recon.SetSelected(true);
     }
 
     void Select(DecoyDroneUnit decoy)
@@ -531,6 +586,12 @@ public class SelectionManager : MonoBehaviour
         shahed.SetSelected(false);
     }
 
+    void Deselect(ReconDroneUnit recon)
+    {
+        _selectedRecons.Remove(recon);
+        recon.SetSelected(false);
+    }
+
     void Deselect(DecoyDroneUnit decoy)
     {
         _selectedDecoys.Remove(decoy);
@@ -548,9 +609,11 @@ public class SelectionManager : MonoBehaviour
     {
         foreach (var d in _selected) if (d != null) d.SetSelected(false);
         foreach (var d in _selectedShaheds) if (d != null) d.SetSelected(false);
+        foreach (var d in _selectedRecons) if (d != null) d.SetSelected(false);
         foreach (var d in _selectedDecoys) if (d != null) d.SetSelected(false);
         _selected.Clear();
         _selectedShaheds.Clear();
+        _selectedRecons.Clear();
         _selectedDecoys.Clear();
     }
 
@@ -591,6 +654,19 @@ public class SelectionManager : MonoBehaviour
             _hoveredShahed.SetHovered(true);
     }
 
+    void SetHoveredRecon(ReconDroneUnit recon)
+    {
+        if (_hoveredRecon == recon) return;
+
+        if (_hoveredRecon != null)
+            _hoveredRecon.SetHovered(false);
+
+        _hoveredRecon = recon;
+
+        if (_hoveredRecon != null)
+            _hoveredRecon.SetHovered(true);
+    }
+
     void SetHoveredDecoy(DecoyDroneUnit decoy)
     {
         if (_hoveredDecoy == decoy) return;
@@ -621,9 +697,11 @@ public class SelectionManager : MonoBehaviour
     {
         _selected.RemoveAll(d => d == null);
         _selectedShaheds.RemoveAll(d => d == null);
+        _selectedRecons.RemoveAll(d => d == null);
         _selectedDecoys.RemoveAll(d => d == null);
         _allDrones.RemoveAll(d => d == null);
         _allShaheds.RemoveAll(d => d == null);
+        _allRecons.RemoveAll(d => d == null);
         _allDecoys.RemoveAll(d => d == null);
     }
 
@@ -717,6 +795,30 @@ public class SelectionManager : MonoBehaviour
         }
 
         return bestShahed;
+    }
+
+    ReconDroneUnit FindReconAtScreenPoint(Vector2 screenPoint)
+    {
+        ReconDroneUnit bestRecon = null;
+        float bestDistance = float.PositiveInfinity;
+
+        foreach (var recon in _allRecons)
+        {
+            if (recon == null) continue;
+            if (!recon.ContainsScreenPoint(gameCamera, screenPoint)) continue;
+
+            Vector3 reconScreenPoint = gameCamera.WorldToScreenPoint(recon.transform.position);
+            if (reconScreenPoint.z <= 0f) continue;
+
+            float distance = Vector2.Distance(screenPoint, reconScreenPoint);
+            if (distance < bestDistance)
+            {
+                bestDistance = distance;
+                bestRecon = recon;
+            }
+        }
+
+        return bestRecon;
     }
 
     bool TryGetMouseFlightPoint(DecoyDroneUnit decoy, out Vector3 point)
