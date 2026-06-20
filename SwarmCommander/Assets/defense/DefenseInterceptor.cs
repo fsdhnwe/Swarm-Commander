@@ -15,6 +15,11 @@ public class DefenseInterceptor : MonoBehaviour
     [Header("武器參數 (把 SAM 或 AAA 的 WeaponData 拖到這裡)")]
     public WeaponData weaponData;
 
+    [Header("威脅評估 (第二關起啟用)")]
+    [Tooltip("勾選後改用威脅評估選目標，不勾則維持原本選最近目標的邏輯")]
+    public bool useThreatEvaluation = false;
+    public ThreatEvaluator.ThreatWeights threatWeights = new ThreatEvaluator.ThreatWeights();
+
     [Header("砲塔旋轉物件 (把會轉動的子物件拖進來；留空則轉動整個建築)")]
     public Transform turretPivot;
 
@@ -62,7 +67,9 @@ public class DefenseInterceptor : MonoBehaviour
                 break;
 
             case InterceptorState.Detect:
-                currentTarget = FindClosestTarget();
+                currentTarget = useThreatEvaluation
+                    ? ThreatEvaluator.FindHighestThreat(transform.position, targetsInRange, threatWeights)
+                    : FindClosestTarget();
                 if (currentTarget != null)
                 {
                     currentState = InterceptorState.Track;
