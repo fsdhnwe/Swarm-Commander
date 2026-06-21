@@ -247,10 +247,17 @@ public partial class GameManager : MonoBehaviour
 
     private static bool IsAlive(ISelectableDrone drone)
     {
-        if (drone == null || drone.GameObject == null || !drone.GameObject.activeInHierarchy)
+        if (drone == null)
             return false;
 
-        DroneHealth health = drone.GameObject.GetComponentInChildren<DroneHealth>();
+        if (drone is UnityEngine.Object unityObject && unityObject == null)
+            return false;
+
+        GameObject droneObject = drone.GameObject;
+        if (droneObject == null || !droneObject.activeInHierarchy)
+            return false;
+
+        DroneHealth health = droneObject.GetComponentInChildren<DroneHealth>();
         return health == null || health.CurrentHP > 0;
     }
 

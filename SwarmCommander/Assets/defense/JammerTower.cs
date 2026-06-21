@@ -4,46 +4,55 @@ using System.Collections.Generic;
 [RequireComponent(typeof(BuildingHealth))]
 public class JammerTower : MonoBehaviour
 {
-    [Header("干擾範圍 (公尺，不受物件 Scale 影響)")]
+    [Header("Jamming")]
     public float jamRadius = 25f;
-
-    [Header("干擾強度（每秒偏移距離，建議 3~8）")]
     public float jamForce = 5f;
-
-    [Header("干擾更新頻率（秒）：每隔多久換一次亂飛方向，越小越抖")]
     public float directionChangeInterval = 0.3f;
+    public float scanInterval = 0.1f;
 
     private BuildingHealth health;
-    private SphereCollider jamCollider;
     private readonly List<Transform> targetsInRange = new List<Transform>();
+    private readonly HashSet<Transform> detectedTargets = new HashSet<Transform>();
     private readonly Dictionary<Transform, Vector3> jamDirections = new Dictionary<Transform, Vector3>();
     private readonly Dictionary<Transform, float> jamTimers = new Dictionary<Transform, float>();
-    private readonly Dictionary<Transform, MonoBehaviour> disabledScripts = new Dictionary<Transform, MonoBehaviour>();
+    private readonly Dictionary<Transform, List<DisabledScriptState>> disabledScripts = new Dictionary<Transform, List<DisabledScriptState>>();
+    private readonly Collider[] scanBuffer = new Collider[128];
+    private float nextScanTime;
+
+    private class DisabledScriptState
+    {
+        public MonoBehaviour script;
+        public bool wasEnabled;
+
+        public DisabledScriptState(MonoBehaviour script)
+        {
+            this.script = script;
+            wasEnabled = script != null && script.enabled;
+        }
+    }
 
     void Awake()
     {
         health = GetComponent<BuildingHealth>();
-        jamCollider = GetComponent<SphereCollider>();
+    }
+
+    void OnEnable()
+    {
+        if (health != null)
+            health.onDestroyed.AddListener(HandleTowerDestroyed);
+    }
+
+    void OnDisable()
+    {
+        RestoreAll();
+
+        if (health != null)
+            health.onDestroyed.RemoveListener(HandleTowerDestroyed);
     }
 
     void Start()
     {
-        if (jamCollider != null)
-        {
-            jamCollider.isTrigger = true;
-
-            float maxScale = Mathf.Max(
-                transform.lossyScale.x,
-                transform.lossyScale.y,
-                transform.lossyScale.z
-            );
-
-            jamCollider.radius = maxScale > 0f ? jamRadius / maxScale : jamRadius;
-        }
-        else
-        {
-            Debug.LogWarning("[干擾塔] 找不到 SphereCollider，請在 Inspector 手動加上並勾選 Is Trigger");
-        }
+        DisableLegacyRangeCollider();
     }
 
     void Update()
@@ -54,18 +63,11 @@ public class JammerTower : MonoBehaviour
             return;
         }
 
-        List<Transform> toRemove = new List<Transform>();
-        foreach (Transform target in targetsInRange)
+        if (Time.time >= nextScanTime)
         {
-            if (target == null || !target.gameObject.activeInHierarchy)
-            {
-                RestoreTarget(target);
-                toRemove.Add(target);
-            }
+            ScanTargetsInRange();
+            nextScanTime = Time.time + Mathf.Max(0.02f, scanInterval);
         }
-
-        foreach (Transform target in toRemove)
-            RemoveTarget(target);
 
         foreach (Transform target in targetsInRange)
         {
@@ -73,7 +75,7 @@ public class JammerTower : MonoBehaviour
 
             if (!jamTimers.ContainsKey(target) || jamTimers[target] <= 0f)
             {
-                jamDirections[target] = Random.insideUnitSphere.normalized;
+                jamDirections[target] = RandomFlatDirection();
                 jamTimers[target] = directionChangeInterval;
             }
             else
@@ -85,37 +87,66 @@ public class JammerTower : MonoBehaviour
         }
     }
 
-    void OnTriggerEnter(Collider other)
+    private void ScanTargetsInRange()
     {
-        if (!IsPlayerDrone(other)) return;
+        detectedTargets.Clear();
 
-        Transform target = GetDroneTargetTransform(other);
+        int count = Physics.OverlapSphereNonAlloc(
+            transform.position,
+            jamRadius,
+            scanBuffer,
+            ~0,
+            QueryTriggerInteraction.Collide);
+
+        for (int i = 0; i < count; i++)
+        {
+            Collider other = scanBuffer[i];
+            if (other == null || !IsPlayerDrone(other)) continue;
+
+            Transform target = GetDroneTargetTransform(other);
+            if (target == null || !target.gameObject.activeInHierarchy) continue;
+            if (!IsInsideJamRange(target.position)) continue;
+
+            detectedTargets.Add(target);
+
+            if (!targetsInRange.Contains(target))
+                JamTarget(target);
+        }
+
+        for (int i = targetsInRange.Count - 1; i >= 0; i--)
+        {
+            Transform target = targetsInRange[i];
+            if (target == null || !target.gameObject.activeInHierarchy || !detectedTargets.Contains(target))
+            {
+                RestoreTarget(target);
+                RemoveTarget(target);
+            }
+        }
+    }
+
+    private void JamTarget(Transform target)
+    {
         if (target == null || targetsInRange.Contains(target)) return;
 
-        MonoBehaviour moveScript = other.GetComponentInParent<PlayerDroneMarker>();
-        if (moveScript != null)
+        List<MonoBehaviour> movementScripts = GetDroneMovementScripts(target);
+        if (movementScripts.Count > 0)
         {
-            moveScript.enabled = false;
-            disabledScripts[target] = moveScript;
-            Debug.Log($"[JammerTower] {target.name} movement disabled.");
+            disabledScripts[target] = DisableScripts(movementScripts);
+            Debug.Log($"[JammerTower] {target.name} movement jammed.");
         }
         else
         {
-            Debug.LogWarning($"[JammerTower] {target.name} has no PlayerDroneMarker to disable.");
+            Debug.LogWarning($"[JammerTower] {target.name} has no supported movement script to jam.");
         }
 
         targetsInRange.Add(target);
-        jamDirections[target] = Random.insideUnitSphere.normalized;
+        jamDirections[target] = RandomFlatDirection();
         jamTimers[target] = directionChangeInterval;
     }
 
-    void OnTriggerExit(Collider other)
+    private bool IsInsideJamRange(Vector3 targetPosition)
     {
-        if (!IsPlayerDrone(other)) return;
-
-        Transform target = GetDroneTargetTransform(other);
-        RestoreTarget(target);
-        RemoveTarget(target);
+        return Vector3.Distance(transform.position, targetPosition) <= jamRadius;
     }
 
     private Transform GetDroneTargetTransform(Collider other)
@@ -131,13 +162,81 @@ public class JammerTower : MonoBehaviour
                other.GetComponentInParent<DroneHealth>() != null;
     }
 
+    private void DisableLegacyRangeCollider()
+    {
+        SphereCollider legacyRangeCollider = GetComponent<SphereCollider>();
+        if (legacyRangeCollider != null)
+            legacyRangeCollider.enabled = false;
+    }
+
+    private List<DisabledScriptState> DisableScripts(List<MonoBehaviour> scripts)
+    {
+        List<DisabledScriptState> states = new List<DisabledScriptState>();
+
+        foreach (MonoBehaviour script in scripts)
+        {
+            if (script == null) continue;
+
+            states.Add(new DisabledScriptState(script));
+            script.enabled = false;
+        }
+
+        return states;
+    }
+
+    private Vector3 RandomFlatDirection()
+    {
+        Vector2 random = Random.insideUnitCircle;
+        if (random.sqrMagnitude <= 0.0001f)
+            return Vector3.forward;
+
+        return new Vector3(random.x, 0f, random.y).normalized;
+    }
+
+    private List<MonoBehaviour> GetDroneMovementScripts(Transform target)
+    {
+        List<MonoBehaviour> scripts = new List<MonoBehaviour>();
+
+        AddMovementScript<DroneUnit>(target, scripts);
+        AddMovementScript<ShahedDroneUnit>(target, scripts);
+        AddMovementScript<ReconDroneUnit>(target, scripts);
+        AddMovementScript<DecoyDroneUnit>(target, scripts);
+        AddMovementScript<MALDPathFollower>(target, scripts);
+
+        if (scripts.Count == 0)
+            AddMovementScript<PlayerDroneMarker>(target, scripts);
+
+        return scripts;
+    }
+
+    private void AddMovementScript<T>(Transform target, List<MonoBehaviour> scripts) where T : MonoBehaviour
+    {
+        if (target == null) return;
+
+        T script = target.GetComponent<T>();
+
+        if (script == null)
+            script = target.GetComponentInParent<T>();
+
+        if (script == null)
+            script = target.GetComponentInChildren<T>();
+
+        if (script != null && !scripts.Contains(script))
+            scripts.Add(script);
+    }
+
     private void RestoreTarget(Transform target)
     {
         if (target == null) return;
 
-        if (disabledScripts.TryGetValue(target, out MonoBehaviour script) && script != null)
+        if (disabledScripts.TryGetValue(target, out List<DisabledScriptState> scripts))
         {
-            script.enabled = true;
+            foreach (DisabledScriptState state in scripts)
+            {
+                if (state.script != null)
+                    state.script.enabled = state.wasEnabled;
+            }
+
             Debug.Log($"[JammerTower] {target.name} movement restored.");
         }
     }
@@ -161,6 +260,11 @@ public class JammerTower : MonoBehaviour
         jamDirections.Clear();
         jamTimers.Clear();
         disabledScripts.Clear();
+    }
+
+    private void HandleTowerDestroyed()
+    {
+        RestoreAll();
     }
 
     void OnDrawGizmos()
