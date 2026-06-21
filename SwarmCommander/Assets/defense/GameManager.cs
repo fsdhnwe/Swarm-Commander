@@ -3,7 +3,7 @@ using UnityEngine.SceneManagement;
 
 // 遊戲狀態管理，場景裡放一個空物件掛這個腳本就好
 // 負責：接收「主堡被摧毀」的通知，觸發遊戲結束流程
-public class GameManager : MonoBehaviour
+public partial class GameManager : MonoBehaviour
 {
     public static GameManager Instance;
 

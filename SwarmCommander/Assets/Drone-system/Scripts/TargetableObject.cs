@@ -1,4 +1,5 @@
 using UnityEngine;
+using System;
 
 /// <summary>
 /// Simple selectable target for drones.
@@ -23,9 +24,12 @@ public class TargetableObject : MonoBehaviour
     private Outline _outline;
     private BuildingHealth _buildingHealth;
     private Headquarters _headquarters;
+    private EnemyIntelVisibility _intelVisibility;
     private bool _isSelected;
     private bool _isHovered;
     private float _currentHealth;
+
+    public event Action<TargetableObject> Destroyed;
 
     public bool IsAlive
     {
@@ -48,12 +52,15 @@ public class TargetableObject : MonoBehaviour
     }
 
     public Vector3 AimPosition => aimPoint != null ? aimPoint.position : transform.position;
+    public bool HasActionableIntel => _intelVisibility == null || _intelVisibility.HasTargetableIntel;
+    public bool IsVisibleToPlayer => HasActionableIntel;
 
     void Awake()
     {
         _outline = GetComponentInChildren<Outline>();
         _buildingHealth = GetComponentInParent<BuildingHealth>();
         _headquarters = GetComponentInParent<Headquarters>();
+        _intelVisibility = GetComponentInParent<EnemyIntelVisibility>();
         _currentHealth = Mathf.Max(1f, maxHealth);
 
         RefreshOutline();
@@ -63,16 +70,33 @@ public class TargetableObject : MonoBehaviour
 
     public void SetSelected(bool selected)
     {
-        _isSelected = selected;
+        _isSelected = selected && HasActionableIntel;
         RefreshOutline();
 
-        SetSelectionIndicator(selected);
+        SetSelectionIndicator(_isSelected);
     }
 
     public void SetHovered(bool hovered)
     {
-        _isHovered = hovered;
+        _isHovered = hovered && HasActionableIntel;
         RefreshOutline();
+    }
+
+    public void RefreshIntelState()
+    {
+        if (!HasActionableIntel)
+        {
+            _isSelected = false;
+            _isHovered = false;
+        }
+
+        RefreshOutline();
+        SetSelectionIndicator(_isSelected && HasActionableIntel);
+    }
+
+    public void RefreshIntelVisibility()
+    {
+        RefreshIntelState();
     }
 
     public void TakeDamage(float amount)
@@ -96,6 +120,8 @@ public class TargetableObject : MonoBehaviour
 
         if (_currentHealth <= 0f)
         {
+            Destroyed?.Invoke(this);
+
             if (destroyOnDeath)
             {
                 Destroy(gameObject);
@@ -117,7 +143,7 @@ public class TargetableObject : MonoBehaviour
     {
         if (_outline == null) return;
 
-        bool showOutline = _isHovered || _isSelected;
+        bool showOutline = HasActionableIntel && (_isHovered || _isSelected);
         _outline.enabled = showOutline;
 
         if (showOutline)

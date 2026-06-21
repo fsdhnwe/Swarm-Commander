@@ -45,8 +45,10 @@ public class Missile : MonoBehaviour
         {
             target.TakeDamage(damage);
 
-            if (hitEffectPrefab != null)
-                Instantiate(hitEffectPrefab, transform.position, Quaternion.identity);
+            if (hitEffectPrefab != null) {
+                GameObject effectInstance = Instantiate(hitEffectPrefab, transform.position, Quaternion.identity);
+                Destroy(effectInstance, 2.0f);
+            }
 
             // 讓 trail 殘留淡出，不要瞬間消失
             _trail.transform.parent = null;
