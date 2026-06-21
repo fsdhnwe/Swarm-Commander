@@ -1,4 +1,5 @@
 using UnityEngine;
+using System;
 
 /// <summary>
 /// Simple selectable target for drones.
@@ -27,6 +28,8 @@ public class TargetableObject : MonoBehaviour
     private bool _isSelected;
     private bool _isHovered;
     private float _currentHealth;
+
+    public event Action<TargetableObject> Destroyed;
 
     public bool IsAlive
     {
@@ -117,6 +120,8 @@ public class TargetableObject : MonoBehaviour
 
         if (_currentHealth <= 0f)
         {
+            Destroyed?.Invoke(this);
+
             if (destroyOnDeath)
             {
                 Destroy(gameObject);

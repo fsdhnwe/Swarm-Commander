@@ -67,6 +67,7 @@ public class ShahedDroneUnit : MonoBehaviour, ISelectableDrone
     public event Action<ISelectableDrone> OnHealthChanged;
     public event Action<ISelectableDrone> OnDied;
     public event Action<ISelectableDrone, bool> OnSelectedChanged;
+    public event Action<ShahedDroneUnit> MoveArrived;
 
     void Awake()
     {
@@ -123,6 +124,7 @@ public class ShahedDroneUnit : MonoBehaviour, ISelectableDrone
             _reachedEnd = true;
             _hoverBasePosition = transform.position;
             ChangeState(ShahedState.Idle);
+            MoveArrived?.Invoke(this);
             return;
         }
 

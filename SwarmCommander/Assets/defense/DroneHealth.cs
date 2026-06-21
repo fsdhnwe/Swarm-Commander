@@ -4,6 +4,9 @@ using UnityEngine;
 public class DroneHealth : MonoBehaviour
 {
     public int maxHP = 50;
+    public bool disableCollidersOnDeath = true;
+    public bool disableThisObjectOnDeath = false;
+    public bool destroyRootOnDeath = false;
     private int currentHP;
 
     public int CurrentHP => currentHP;
@@ -29,7 +32,7 @@ public class DroneHealth : MonoBehaviour
         Debug.Log($"{gameObject.name} destroyed.");
         NotifySelectableDroneDied();
         OnDied?.Invoke(this);
-        gameObject.SetActive(false);
+        ApplyDeathObjectState();
     }
 
     private void NotifySelectableDroneDied()
@@ -37,5 +40,27 @@ public class DroneHealth : MonoBehaviour
         ISelectableDrone selectableDrone = GetComponentInParent<ISelectableDrone>();
         if (selectableDrone != null && GameManager.Instance != null)
             GameManager.Instance.RemoveDroneFromAllGroups(selectableDrone);
+    }
+
+    private void ApplyDeathObjectState()
+    {
+        ISelectableDrone selectableDrone = GetComponentInParent<ISelectableDrone>();
+        GameObject root = selectableDrone?.GameObject != null ? selectableDrone.GameObject : gameObject;
+
+        if (destroyRootOnDeath)
+        {
+            Destroy(root);
+            return;
+        }
+
+        if (disableCollidersOnDeath)
+        {
+            Collider[] colliders = root.GetComponentsInChildren<Collider>();
+            foreach (Collider collider in colliders)
+                collider.enabled = false;
+        }
+
+        if (disableThisObjectOnDeath)
+            gameObject.SetActive(false);
     }
 }

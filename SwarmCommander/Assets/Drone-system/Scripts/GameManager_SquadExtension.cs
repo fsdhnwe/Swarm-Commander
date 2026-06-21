@@ -121,6 +121,27 @@ public partial class GameManager : MonoBehaviour
         return GetSquadCount(squadIndex) > 0;
     }
 
+    public string GetSquadLabel(ISelectableDrone drone)
+    {
+        if (drone == null) return "-";
+
+        List<int> squadNumbers = new();
+        for (int i = 0; i < squads.Length; i++)
+        {
+            RemoveDestroyedReferences(squads[i]);
+            if (squads[i].Contains(drone))
+                squadNumbers.Add(i + 1);
+        }
+
+        if (squadNumbers.Count == 0)
+            return "No Squad";
+
+        if (squadNumbers.Count == 1)
+            return $"Squad {squadNumbers[0]}";
+
+        return $"Squads {string.Join(", ", squadNumbers)}";
+    }
+
     public void SelectDrone(ISelectableDrone drone, bool addToSelection = false)
     {
         if (drone == null) return;
@@ -226,7 +247,11 @@ public partial class GameManager : MonoBehaviour
 
     private static bool IsAlive(ISelectableDrone drone)
     {
-        return drone != null && drone.GameObject != null;
+        if (drone == null || drone.GameObject == null || !drone.GameObject.activeInHierarchy)
+            return false;
+
+        DroneHealth health = drone.GameObject.GetComponentInChildren<DroneHealth>();
+        return health == null || health.CurrentHP > 0;
     }
 
     private bool IsValidSquadIndex(int squadIndex)

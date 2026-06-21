@@ -63,6 +63,7 @@ public class DecoyDroneUnit : MonoBehaviour, ISelectableDrone
     public event Action<ISelectableDrone> OnHealthChanged;
     public event Action<ISelectableDrone> OnDied;
     public event Action<ISelectableDrone, bool> OnSelectedChanged;
+    public event Action<DecoyDroneUnit> MoveArrived;
 
     void Awake()
     {
@@ -122,6 +123,7 @@ public class DecoyDroneUnit : MonoBehaviour, ISelectableDrone
         {
             _hoverBasePosition = new Vector3(_moveTarget.x, transform.position.y, _moveTarget.z);
             _state = DecoyState.Idle;
+            MoveArrived?.Invoke(this);
             return;
         }
 

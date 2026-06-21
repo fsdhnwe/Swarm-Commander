@@ -67,6 +67,11 @@ public class DronePlacementManager : MonoBehaviour
         BeginPlacement(type);
     }
 
+    public bool CanPlaceDrone(PlacementType type)
+    {
+        return GetPrefab(type) != null;
+    }
+
     public void CancelPlacement()
     {
         if (selectionManager != null)

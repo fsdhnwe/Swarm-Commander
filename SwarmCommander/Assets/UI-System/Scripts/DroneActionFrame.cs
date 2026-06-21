@@ -61,6 +61,15 @@ public class DroneActionFrame : MonoBehaviour
         }
     }
 
+    public void SetLabelColor(Color color)
+    {
+        if (labelText != null)
+            labelText.color = color;
+
+        if (legacyLabelText != null)
+            legacyLabelText.color = color;
+    }
+
     private void OnDestroy()
     {
         if (button != null && clickAction != null)

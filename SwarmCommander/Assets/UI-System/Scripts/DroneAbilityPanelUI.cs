@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 
 public class DroneAbilityPanelUI : MonoBehaviour
@@ -23,6 +24,8 @@ public class DroneAbilityPanelUI : MonoBehaviour
     [SerializeField] private Transform abilityFrameContainer;
 
     [Header("Spawn Frames")]
+    public int money = 300;
+    [SerializeField] private TMP_Text moneyText;
     [SerializeField] private SpawnFrameConfig[] spawnEntries =
     {
         new SpawnFrameConfig { displayName = "Fighting", placementType = DronePlacementManager.PlacementType.FightingDrone, cost = 100 },
@@ -39,6 +42,8 @@ public class DroneAbilityPanelUI : MonoBehaviour
     [SerializeField, Range(0f, 1f)] private float activeAlpha = 1f;
     [SerializeField, Range(0f, 1f)] private float availableAlpha = 0.65f;
     [SerializeField, Range(0f, 1f)] private float unavailableAlpha = 0.25f;
+    [SerializeField] private Color affordableCostColor = Color.white;
+    [SerializeField] private Color unaffordableCostColor = Color.red;
 
     private readonly List<DroneActionFrame> spawnFrames = new();
     private readonly List<DroneActionFrame> abilityFrames = new();
@@ -60,6 +65,7 @@ public class DroneAbilityPanelUI : MonoBehaviour
 
     private void Update()
     {
+        RefreshSpawnFrames();
         RefreshAbilityFrames();
     }
 
@@ -71,6 +77,19 @@ public class DroneAbilityPanelUI : MonoBehaviour
         while (spawnFrames.Count < spawnEntries.Length)
             spawnFrames.Add(Instantiate(framePrefab, spawnFrameContainer));
 
+        RefreshSpawnFrames();
+    }
+
+    private void RefreshSpawnFrames()
+    {
+        if (spawnEntries == null)
+            return;
+
+        RefreshMoneyText();
+
+        if (placementManager == null)
+            placementManager = FindAnyObjectByType<DronePlacementManager>();
+
         for (int i = 0; i < spawnFrames.Count; i++)
         {
             if (i >= spawnEntries.Length)
@@ -80,14 +99,18 @@ public class DroneAbilityPanelUI : MonoBehaviour
             }
 
             SpawnFrameConfig entry = spawnEntries[i];
+            bool canAfford = money >= entry.cost;
+            bool canSpawn = placementManager != null && placementManager.CanPlaceDrone(entry.placementType) && canAfford;
+
             spawnFrames[i].gameObject.SetActive(true);
             spawnFrames[i].Bind(
                 entry.icon,
                 $"${entry.cost}",
-                () => SpawnDrone(entry.placementType),
-                placementManager != null,
+                () => SpawnDrone(entry),
+                canSpawn,
                 false,
-                placementManager != null ? activeAlpha : unavailableAlpha);
+                canSpawn ? activeAlpha : unavailableAlpha);
+            spawnFrames[i].SetLabelColor(canAfford ? affordableCostColor : unaffordableCostColor);
         }
     }
 
@@ -138,14 +161,39 @@ public class DroneAbilityPanelUI : MonoBehaviour
         }
     }
 
-    private void SpawnDrone(DronePlacementManager.PlacementType type)
+    public void AddMoney(int amount)
     {
+        money = Mathf.Max(0, money + amount);
+        RefreshSpawnFrames();
+    }
+
+    public bool SpendMoney(int amount)
+    {
+        if (amount < 0) return false;
+        if (money < amount) return false;
+
+        money -= amount;
+        RefreshSpawnFrames();
+        return true;
+    }
+
+    private void RefreshMoneyText()
+    {
+        if (moneyText != null)
+            moneyText.text = $"${money}";
+    }
+
+    private void SpawnDrone(SpawnFrameConfig entry)
+    {
+        if (entry == null) return;
+
         if (placementManager == null)
             placementManager = FindAnyObjectByType<DronePlacementManager>();
 
         if (placementManager == null) return;
+        if (!SpendMoney(entry.cost)) return;
 
-        placementManager.BeginPlaceDrone(type);
+        placementManager.BeginPlaceDrone(entry.placementType);
     }
 
     private void UseAbility(SelectionManager.AbilityDroneType type)

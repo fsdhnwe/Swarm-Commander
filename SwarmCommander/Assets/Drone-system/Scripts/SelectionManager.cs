@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
@@ -32,6 +33,10 @@ public class SelectionManager : MonoBehaviour
     [Header("Move Formation")]
     [Tooltip("Spread drones out by this distance when issuing a group move order")]
     public float formationSpacing = 2f;
+
+    [Header("Move Destination Cursor")]
+    public MoveDestinationCursor moveDestinationCursorPrefab;
+    public bool showFormationDestinationCursors = false;
 
     [Header("MALD Path Planning")]
     public Material maldPathMaterial;
@@ -81,6 +86,11 @@ public class SelectionManager : MonoBehaviour
     private readonly List<RaycastResult> _uiRaycastResults = new();
     private AbilityDroneType _activeAbilityType = AbilityDroneType.None;
     private readonly List<AbilityDroneType> _availableAbilityTypes = new();
+    private readonly List<MoveDestinationCursor> _activeMoveDestinationCursors = new();
+    private readonly List<DroneUnit> _moveCursorTrackedDrones = new();
+    private readonly List<ShahedDroneUnit> _moveCursorTrackedShaheds = new();
+    private readonly List<ReconDroneUnit> _moveCursorTrackedRecons = new();
+    private readonly List<DecoyDroneUnit> _moveCursorTrackedDecoys = new();
 
     private float _clickTime;
     private const float ClickMaxDuration = 0.2f;
@@ -92,6 +102,8 @@ public class SelectionManager : MonoBehaviour
     public AbilityDroneType ActiveAbilityType => _activeAbilityType;
     public bool IsReconAbilityAvailable => _selectedRecons.Count > 0;
     public bool IsDecoyAbilityAvailable => _selectedDecoys.Count > 0;
+
+    public event Action<GameObject> OnInfoTargetChanged;
 
     public void SetActiveAbilityTypeFromUI(AbilityDroneType abilityType)
     {
@@ -127,6 +139,11 @@ public class SelectionManager : MonoBehaviour
     {
         if (gameCamera == null) gameCamera = Camera.main;
         _boxUI = GetComponent<SelectionBoxUI>();
+    }
+
+    void OnDisable()
+    {
+        ClearMoveDestinationCursors();
     }
 
     void Start()
@@ -585,6 +602,11 @@ public class SelectionManager : MonoBehaviour
         if (clickedDrone == null && clickedShahed == null && clickedRecon == null && clickedDecoy == null)
             clickedDecoy = FindDecoyAtScreenPoint(screenPos);
 
+        if (!IsSelectableDroneAlive(clickedDrone)) clickedDrone = null;
+        if (!IsSelectableDroneAlive(clickedShahed)) clickedShahed = null;
+        if (!IsSelectableDroneAlive(clickedRecon)) clickedRecon = null;
+        if (!IsSelectableDroneAlive(clickedDecoy)) clickedDecoy = null;
+
         if (clickedDrone != null || clickedShahed != null || clickedRecon != null || clickedDecoy != null)
         {
 
@@ -634,6 +656,7 @@ public class SelectionManager : MonoBehaviour
             {
                 DeselectAll();
                 DeselectAllTargets();
+                ClearInfoTarget();
             }
         }
     }
@@ -651,6 +674,8 @@ public class SelectionManager : MonoBehaviour
 
         foreach (var drone in _allDrones)
         {
+            if (!IsSelectableDroneAlive(drone)) continue;
+
             Vector3 screenPoint = gameCamera.WorldToScreenPoint(drone.transform.position);
             if (screenRect.Contains(screenPoint, true))
             {
@@ -661,7 +686,7 @@ public class SelectionManager : MonoBehaviour
 
         foreach (var shahed in _allShaheds)
         {
-            if (shahed == null) continue;
+            if (!IsSelectableDroneAlive(shahed)) continue;
 
             Vector3 screenPoint = gameCamera.WorldToScreenPoint(shahed.transform.position);
             if (screenRect.Contains(screenPoint, true))
@@ -673,7 +698,7 @@ public class SelectionManager : MonoBehaviour
 
         foreach (var recon in _allRecons)
         {
-            if (recon == null) continue;
+            if (!IsSelectableDroneAlive(recon)) continue;
 
             Vector3 screenPoint = gameCamera.WorldToScreenPoint(recon.transform.position);
             if (screenRect.Contains(screenPoint, true))
@@ -685,6 +710,8 @@ public class SelectionManager : MonoBehaviour
 
         foreach (var decoy in _allDecoys)
         {
+            if (!IsSelectableDroneAlive(decoy)) continue;
+
             Vector3 screenPoint = gameCamera.WorldToScreenPoint(decoy.transform.position);
             if (screenRect.Contains(screenPoint, true))
             {
@@ -713,6 +740,7 @@ public class SelectionManager : MonoBehaviour
             var target = targetHit.collider.GetComponentInParent<TargetableObject>();
             if (target != null && target.IsAlive && target.HasActionableIntel)
             {
+                ClearMoveDestinationCursors();
                 DeselectAllTargets();
                 Select(target);
 
@@ -732,6 +760,7 @@ public class SelectionManager : MonoBehaviour
         if (!Physics.Raycast(ray, out RaycastHit hit, 1000f, groundLayer)) return;
 
         Vector3 destination = hit.point;
+        ClearMoveDestinationCursors();
         DeselectAllTargets();
 
         // Spread drones in a grid/circle formation so they don't pile up
@@ -758,6 +787,103 @@ public class SelectionManager : MonoBehaviour
             if (_selectedDecoys[i] != null)
                 _selectedDecoys[i].MoveTo(positions[index]);
         }
+
+        ShowMoveDestinationCursors(destination, hit.normal, positions);
+        TrackMoveDestinationArrivals();
+    }
+
+    void ShowMoveDestinationCursors(Vector3 destination, Vector3 surfaceNormal, List<Vector3> formationPositions)
+    {
+        if (moveDestinationCursorPrefab == null) return;
+
+        if (!showFormationDestinationCursors)
+        {
+            SpawnMoveDestinationCursor(destination, surfaceNormal);
+            return;
+        }
+
+        foreach (Vector3 position in formationPositions)
+            SpawnMoveDestinationCursor(position, surfaceNormal);
+    }
+
+    void SpawnMoveDestinationCursor(Vector3 position, Vector3 surfaceNormal)
+    {
+        MoveDestinationCursor cursor = Instantiate(moveDestinationCursorPrefab);
+        cursor.Show(position, surfaceNormal);
+        _activeMoveDestinationCursors.Add(cursor);
+    }
+
+    void TrackMoveDestinationArrivals()
+    {
+        foreach (DroneUnit drone in _selected)
+        {
+            if (drone == null) continue;
+            drone.MoveArrived += HandleMoveDestinationArrived;
+            _moveCursorTrackedDrones.Add(drone);
+        }
+
+        foreach (ShahedDroneUnit shahed in _selectedShaheds)
+        {
+            if (shahed == null) continue;
+            shahed.MoveArrived += HandleMoveDestinationArrived;
+            _moveCursorTrackedShaheds.Add(shahed);
+        }
+
+        foreach (ReconDroneUnit recon in _selectedRecons)
+        {
+            if (recon == null) continue;
+            recon.MoveArrived += HandleMoveDestinationArrived;
+            _moveCursorTrackedRecons.Add(recon);
+        }
+
+        foreach (DecoyDroneUnit decoy in _selectedDecoys)
+        {
+            if (decoy == null) continue;
+            decoy.MoveArrived += HandleMoveDestinationArrived;
+            _moveCursorTrackedDecoys.Add(decoy);
+        }
+    }
+
+    void HandleMoveDestinationArrived(DroneUnit drone) => ClearMoveDestinationCursors();
+    void HandleMoveDestinationArrived(ShahedDroneUnit shahed) => ClearMoveDestinationCursors();
+    void HandleMoveDestinationArrived(ReconDroneUnit recon) => ClearMoveDestinationCursors();
+    void HandleMoveDestinationArrived(DecoyDroneUnit decoy) => ClearMoveDestinationCursors();
+
+    void ClearMoveDestinationCursors()
+    {
+        UntrackMoveDestinationArrivals();
+
+        foreach (MoveDestinationCursor cursor in _activeMoveDestinationCursors)
+        {
+            if (cursor != null)
+                cursor.Dismiss();
+        }
+
+        _activeMoveDestinationCursors.Clear();
+    }
+
+    void UntrackMoveDestinationArrivals()
+    {
+        foreach (DroneUnit drone in _moveCursorTrackedDrones)
+            if (drone != null)
+                drone.MoveArrived -= HandleMoveDestinationArrived;
+
+        foreach (ShahedDroneUnit shahed in _moveCursorTrackedShaheds)
+            if (shahed != null)
+                shahed.MoveArrived -= HandleMoveDestinationArrived;
+
+        foreach (ReconDroneUnit recon in _moveCursorTrackedRecons)
+            if (recon != null)
+                recon.MoveArrived -= HandleMoveDestinationArrived;
+
+        foreach (DecoyDroneUnit decoy in _moveCursorTrackedDecoys)
+            if (decoy != null)
+                decoy.MoveArrived -= HandleMoveDestinationArrived;
+
+        _moveCursorTrackedDrones.Clear();
+        _moveCursorTrackedShaheds.Clear();
+        _moveCursorTrackedRecons.Clear();
+        _moveCursorTrackedDecoys.Clear();
     }
 
     // ── Selection Helpers ───────────────────────────────────────────
@@ -767,6 +893,7 @@ public class SelectionManager : MonoBehaviour
         _selected.Add(drone);
         drone.SetSelected(true);
         GameManager.Instance?.AddSelectedDrone(drone);
+        NotifyInfoTarget(drone.gameObject);
     }
 
     void Select(ShahedDroneUnit shahed)
@@ -774,6 +901,7 @@ public class SelectionManager : MonoBehaviour
         _selectedShaheds.Add(shahed);
         shahed.SetSelected(true);
         GameManager.Instance?.AddSelectedDrone(shahed);
+        NotifyInfoTarget(shahed.gameObject);
     }
 
     void Select(ReconDroneUnit recon)
@@ -781,6 +909,7 @@ public class SelectionManager : MonoBehaviour
         _selectedRecons.Add(recon);
         recon.SetSelected(true);
         GameManager.Instance?.AddSelectedDrone(recon);
+        NotifyInfoTarget(recon.gameObject);
     }
 
     void Select(DecoyDroneUnit decoy)
@@ -788,12 +917,14 @@ public class SelectionManager : MonoBehaviour
         _selectedDecoys.Add(decoy);
         decoy.SetSelected(true);
         GameManager.Instance?.AddSelectedDrone(decoy);
+        NotifyInfoTarget(decoy.gameObject);
     }
 
     void Select(TargetableObject target)
     {
         _selectedTargets.Add(target);
         target.SetSelected(true);
+        NotifyInfoTarget(target.gameObject);
     }
 
     void Deselect(DroneUnit drone)
@@ -842,6 +973,16 @@ public class SelectionManager : MonoBehaviour
         _selectedRecons.Clear();
         _selectedDecoys.Clear();
         GameManager.Instance?.ReplaceSelection(System.Array.Empty<ISelectableDrone>());
+    }
+
+    void NotifyInfoTarget(GameObject target)
+    {
+        OnInfoTargetChanged?.Invoke(target);
+    }
+
+    void ClearInfoTarget()
+    {
+        OnInfoTargetChanged?.Invoke(null);
     }
 
     void SelectSelectableDrone(ISelectableDrone drone)
@@ -960,14 +1101,23 @@ public class SelectionManager : MonoBehaviour
 
     void CleanupDestroyedUnits()
     {
-        _selected.RemoveAll(d => d == null);
-        _selectedShaheds.RemoveAll(d => d == null);
-        _selectedRecons.RemoveAll(d => d == null);
-        _selectedDecoys.RemoveAll(d => d == null);
+        _selected.RemoveAll(d => !IsSelectableDroneAlive(d));
+        _selectedShaheds.RemoveAll(d => !IsSelectableDroneAlive(d));
+        _selectedRecons.RemoveAll(d => !IsSelectableDroneAlive(d));
+        _selectedDecoys.RemoveAll(d => !IsSelectableDroneAlive(d));
         _allDrones.RemoveAll(d => d == null);
         _allShaheds.RemoveAll(d => d == null);
         _allRecons.RemoveAll(d => d == null);
         _allDecoys.RemoveAll(d => d == null);
+    }
+
+    static bool IsSelectableDroneAlive(ISelectableDrone drone)
+    {
+        if (drone == null || drone.GameObject == null || !drone.GameObject.activeInHierarchy)
+            return false;
+
+        DroneHealth health = drone.GameObject.GetComponentInChildren<DroneHealth>();
+        return health == null || health.CurrentHP > 0;
     }
 
     void RefreshActiveAbilityType()
