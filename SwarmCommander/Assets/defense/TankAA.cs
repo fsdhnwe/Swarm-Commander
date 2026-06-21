@@ -32,8 +32,19 @@ public class TankAA : MonoBehaviour
     public float rotationSpeed = 90f;
 
     [Header("貼地設定")]
-    [Tooltip("坦克 pivot 到底部距離，避免穿地")]
+    [Tooltip("坦克 pivot 到底部距離，避免穿地。注意：如果模型 pivot 在中心（例如測試用 Cube），" +
+             "這裡要填『實際 Scale × 0.5』才會對，不是隨便填一個小數字（MobileSAM 之前就是栽在這裡）")]
     public float groundOffset = 0.5f;
+
+    [Header("壁障 (避開其他 Layer=Enemy 的防守物件)")]
+    [Tooltip("避障偵測距離（公尺）：往移動方向前方偵測是否有障礙物擋路")]
+    public float obstacleAvoidDistance = 6f;
+
+    [Tooltip("避障偏轉強度：越大閃避時轉得越急，太大會繞圈、太小會撞不太到效果")]
+    public float obstacleAvoidStrength = 1.5f;
+
+    [Tooltip("障礙物所在的 Layer（防守物件的 Layer，請在這裡指定專案實際設定的 Enemy Layer）")]
+    public LayerMask obstacleLayer;
 
     [Header("砲塔旋轉")]
     [Tooltip("砲塔子物件（只旋轉砲塔，車體不跟著轉）")]
@@ -97,6 +108,9 @@ public class TankAA : MonoBehaviour
 
         targetsInRange.RemoveAll(t => t == null || !t.gameObject.activeInHierarchy);
         fireTimer -= Time.deltaTime;
+
+        // 貼地：每幀都校正，不管目前是 Patrol 還是 Engage
+        SnapToGround();
 
         if (currentState == TankAAState.Engage && targetsInRange.Count == 0)
         {
@@ -167,9 +181,25 @@ public class TankAA : MonoBehaviour
         }
 
         Vector3 direction = (targetPos - transform.position).normalized;
+
+        // 壁障：偵測移動方向前方是否有其他 Layer=Enemy 的防守物件擋路，閃避用
+        direction = ApplyObstacleAvoidance(direction);
+
         transform.position += direction * patrolSpeed * Time.deltaTime;
 
-        // 貼地
+        // 車體朝移動方向轉（坦克轉向較慢）
+        if (direction.sqrMagnitude > 0.001f)
+        {
+            Quaternion targetRot = Quaternion.LookRotation(direction);
+            transform.rotation = Quaternion.RotateTowards(
+                transform.rotation, targetRot, rotationSpeed * Time.deltaTime);
+        }
+    }
+
+    // 貼地：抽成獨立方法、每幀都呼叫（不管 Patrol／Engage／路徑點停留），更靈敏，
+    // 不會像之前只在巡邏移動中才校正，導致停下開火時的高度沒人管。
+    private void SnapToGround()
+    {
         RaycastHit groundHit;
         Vector3 rayOrigin = new Vector3(transform.position.x, transform.position.y + 50f, transform.position.z);
         if (Physics.Raycast(rayOrigin, Vector3.down, out groundHit, 200f,
@@ -183,14 +213,39 @@ public class TankAA : MonoBehaviour
                     transform.position.z);
             }
         }
-
-        // 車體朝移動方向轉（坦克轉向較慢）
-        if (direction.sqrMagnitude > 0.001f)
+        else
         {
-            Quaternion targetRot = Quaternion.LookRotation(direction);
-            transform.rotation = Quaternion.RotateTowards(
-                transform.rotation, targetRot, rotationSpeed * Time.deltaTime);
+            // 診斷用：跟 MobileSAM 同樣的邏輯。如果這行一直出現，代表 Raycast
+            // 根本沒打到任何東西，最常見原因：地形沒掛 Collider、Collider 被關掉，
+            // 或地形剛好跟本物件同一個 Layer（會被 groundRaycastMask 一起排除掉）。
+            Debug.LogWarning($"[TankAA] {gameObject.name} 貼地 Raycast 沒打到任何東西！" +
+                $"請檢查地形是否有掛 Collider，以及地形 Layer 是否跟本物件（{LayerMask.LayerToName(gameObject.layer)}）相同（位置：{transform.position}）");
         }
+    }
+
+    // 壁障：往移動方向前方丟一條 Raycast，撞到 obstacleLayer 裡的物件就往側邊閃開。
+    // 自己也可能在同一個 Layer，所以額外用 IsChildOf 排除自己。
+    private Vector3 ApplyObstacleAvoidance(Vector3 moveDir)
+    {
+        if (moveDir.sqrMagnitude < 0.0001f) return moveDir;
+
+        RaycastHit hit;
+        if (Physics.Raycast(transform.position, moveDir, out hit, obstacleAvoidDistance,
+            obstacleLayer, QueryTriggerInteraction.Ignore))
+        {
+            if (!hit.collider.transform.IsChildOf(transform))
+            {
+                Vector3 avoidDir = Vector3.Cross(Vector3.up, hit.normal).normalized;
+
+                if (Vector3.Dot(avoidDir, Vector3.Cross(Vector3.up, moveDir)) < 0f)
+                    avoidDir = -avoidDir;
+
+                float closeness = 1f - Mathf.Clamp01(hit.distance / obstacleAvoidDistance);
+                moveDir = (moveDir + avoidDir * obstacleAvoidStrength * closeness).normalized;
+            }
+        }
+
+        return moveDir;
     }
 
     private void FireAtTarget()

@@ -31,8 +31,19 @@ public class Soldier : MonoBehaviour
     public float arrivalDist = 0.8f;
 
     [Header("貼地設定")]
-    [Tooltip("士兵 pivot 到腳底的距離，避免穿地")]
+    [Tooltip("士兵 pivot 到腳底的距離，避免穿地。注意：如果模型 pivot 在中心（例如測試用 Capsule/Cube），" +
+             "這裡要填『實際 Scale × 0.5』才會對，不是隨便填一個小數字（MobileSAM 之前就是栽在這裡）")]
     public float groundOffset = 0f;
+
+    [Header("壁障 (避開其他 Layer=Enemy 的防守物件)")]
+    [Tooltip("避障偵測距離（公尺）：往移動方向前方偵測是否有障礙物擋路")]
+    public float obstacleAvoidDistance = 3f;
+
+    [Tooltip("避障偏轉強度：越大閃避時轉得越急，太大會繞圈、太小會撞不太到效果")]
+    public float obstacleAvoidStrength = 1.5f;
+
+    [Tooltip("障礙物所在的 Layer（防守物件的 Layer，請在這裡指定專案實際設定的 Enemy Layer）")]
+    public LayerMask obstacleLayer;
 
     [Header("武器設定")]
     [Tooltip("拖入步槍或 MANPADS 的 WeaponData，數值自行設定（應比 SAM/AAA 弱）")]
@@ -153,6 +164,10 @@ public class Soldier : MonoBehaviour
         }
 
         Vector3 dir = (flatTarget - transform.position).normalized;
+
+        // 壁障：偵測移動方向前方是否有其他 Layer=Enemy 的防守物件擋路，閃避用
+        dir = ApplyObstacleAvoidance(dir);
+
         transform.position += dir * currentMoveSpeed * Time.deltaTime;
 
         // 朝移動方向轉
@@ -162,6 +177,31 @@ public class Soldier : MonoBehaviour
             transform.rotation = Quaternion.RotateTowards(
                 transform.rotation, targetRot, 360f * Time.deltaTime);
         }
+    }
+
+    // 壁障：往移動方向前方丟一條 Raycast，撞到 obstacleLayer 裡的物件就往側邊閃開。
+    // 自己也可能在同一個 Layer，所以額外用 IsChildOf 排除自己。
+    private Vector3 ApplyObstacleAvoidance(Vector3 moveDir)
+    {
+        if (moveDir.sqrMagnitude < 0.0001f) return moveDir;
+
+        RaycastHit hit;
+        if (Physics.Raycast(transform.position, moveDir, out hit, obstacleAvoidDistance,
+            obstacleLayer, QueryTriggerInteraction.Ignore))
+        {
+            if (!hit.collider.transform.IsChildOf(transform))
+            {
+                Vector3 avoidDir = Vector3.Cross(Vector3.up, hit.normal).normalized;
+
+                if (Vector3.Dot(avoidDir, Vector3.Cross(Vector3.up, moveDir)) < 0f)
+                    avoidDir = -avoidDir;
+
+                float closeness = 1f - Mathf.Clamp01(hit.distance / obstacleAvoidDistance);
+                moveDir = (moveDir + avoidDir * obstacleAvoidStrength * closeness).normalized;
+            }
+        }
+
+        return moveDir;
     }
 
     private void UpdateEngage()
@@ -251,6 +291,14 @@ public class Soldier : MonoBehaviour
                     hit.point.y + groundOffset,
                     transform.position.z);
             }
+        }
+        else
+        {
+            // 診斷用：跟 MobileSAM 同樣的邏輯。如果這行一直出現，代表 Raycast
+            // 根本沒打到任何東西，最常見原因：地形沒掛 Collider、Collider 被關掉，
+            // 或地形剛好跟本物件同一個 Layer（會被 groundRaycastMask 一起排除掉）。
+            Debug.LogWarning($"[Soldier] {gameObject.name} 貼地 Raycast 沒打到任何東西！" +
+                $"請檢查地形是否有掛 Collider，以及地形 Layer 是否跟本物件（{LayerMask.LayerToName(gameObject.layer)}）相同（位置：{transform.position}）");
         }
     }
 
