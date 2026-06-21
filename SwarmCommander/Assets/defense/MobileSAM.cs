@@ -1,5 +1,6 @@
-using UnityEngine;
 using System.Collections.Generic;
+using UnityEngine;
+using static ThreatEvaluator;
 
 // Mobile SAM — 現實對應 Pantsir-S1（俄製近中程防空系統）
 // 特性：
@@ -193,6 +194,14 @@ public class MobileSAM : MonoBehaviour
                 // 每秒重新評估是否有更高威脅目標
                 currentTarget = ThreatEvaluator.FindHighestThreat(
                     transform.position, targetsInRange, threatWeights);
+
+                // ← 修正：FindHighestThreat 可能回傳 null（範圍內目標全消失），
+                //   加 null 檢查避免 NullReferenceException
+                if (currentTarget == null)
+                {
+                    currentState = MobileSAMState.Patrol;
+                    break;
+                }
 
                 RotateTurretTowards(currentTarget.position);
                 UpdateWeapons();
