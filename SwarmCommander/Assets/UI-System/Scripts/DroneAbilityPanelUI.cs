@@ -177,6 +177,26 @@ public class DroneAbilityPanelUI : MonoBehaviour
         return true;
     }
 
+    public bool CanAffordAnyAvailableDrone()
+    {
+        if (spawnEntries == null || spawnEntries.Length == 0)
+            return false;
+
+        if (placementManager == null)
+            placementManager = FindAnyObjectByType<DronePlacementManager>();
+
+        foreach (SpawnFrameConfig entry in spawnEntries)
+        {
+            if (entry == null) continue;
+            if (money < entry.cost) continue;
+
+            if (placementManager == null || placementManager.CanPlaceDrone(entry.placementType))
+                return true;
+        }
+
+        return false;
+    }
+
     private void RefreshMoneyText()
     {
         if (moneyText != null)

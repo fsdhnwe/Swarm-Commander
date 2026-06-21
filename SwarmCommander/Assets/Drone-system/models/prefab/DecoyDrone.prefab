@@ -143,7 +143,7 @@ MonoBehaviour:
   hoverFrequency: 1.2
   maldPrefab: {fileID: 2902463841056326433, guid: 28ec93e58221a174690b794261390f93, type: 3}
   maldLaunchPoint: {fileID: 8375161641216875477}
-  launchRange: 1000
+  launchRange: 240
   maldSpeed: 25
   waypointReachDistance: 1
   maldModelRotationOffset: {x: 0, y: 90, z: 0}
@@ -168,7 +168,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 84ed070e2ab215f499247e94a50e3e97, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DroneHealth
-  maxHP: 50
+  maxHP: 150
   disableCollidersOnDeath: 1
   disableThisObjectOnDeath: 1
   destroyRootOnDeath: 0

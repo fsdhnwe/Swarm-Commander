@@ -136,7 +136,7 @@ MonoBehaviour:
   hoverColor: {r: 1, g: 1, b: 1, a: 1}
   normalColor: {r: 1, g: 1, b: 1, a: 1}
   portraitIcon: {fileID: -94067058, guid: 5ec43494d23e8ba4d99f72673e7c0179, type: 3}
-  moveSpeed: 8
+  moveSpeed: 12
   nextWaypointDist: 1
   arrivalDist: 1.5
   rotationSpeed: 8
@@ -176,7 +176,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 84ed070e2ab215f499247e94a50e3e97, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DroneHealth
-  maxHP: 50
+  maxHP: 100
   disableCollidersOnDeath: 1
   disableThisObjectOnDeath: 1
   destroyRootOnDeath: 0

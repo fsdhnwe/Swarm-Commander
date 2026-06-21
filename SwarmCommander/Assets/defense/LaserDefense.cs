@@ -67,6 +67,9 @@ public class LaserDefense : MonoBehaviour
         health = GetComponent<BuildingHealth>();
 
         GameObject detectionZone = new GameObject("DetectionZone");
+        int detectionLayer = LayerMask.NameToLayer("DetectionZone");
+        if (detectionLayer >= 0)
+            detectionZone.layer = detectionLayer;
         detectionZone.transform.SetParent(transform, false);
         detectionZone.transform.localPosition = Vector3.zero;
 

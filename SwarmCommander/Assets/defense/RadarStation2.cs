@@ -35,6 +35,10 @@ public class RadarStation2 : MonoBehaviour
         detectionZone.transform.SetParent(transform, false);
         detectionZone.transform.localPosition = Vector3.zero;
 
+        int detectionLayer = LayerMask.NameToLayer("DetectionZone");
+        if (detectionLayer >= 0)
+            detectionZone.layer = detectionLayer;
+
         SphereCollider detectionTrigger = detectionZone.AddComponent<SphereCollider>();
         detectionTrigger.isTrigger = true;
 

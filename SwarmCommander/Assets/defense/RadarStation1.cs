@@ -52,6 +52,10 @@ public class RadarStation1 : MonoBehaviour
         health = GetComponent<BuildingHealth>();
 
         GameObject detectionZone = new GameObject("DirectionalDetectionZone");
+
+        int detectionLayer = LayerMask.NameToLayer("DetectionZone");
+        if (detectionLayer >= 0)
+            detectionZone.layer = detectionLayer;
         detectionZone.transform.SetParent(transform, false);
         detectionZone.transform.localPosition = Vector3.zero;
 

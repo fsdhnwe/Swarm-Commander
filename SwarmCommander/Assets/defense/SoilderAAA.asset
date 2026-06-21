@@ -12,14 +12,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4c5d72e28374e3043a5be427260dae89, type: 3}
   m_Name: SoilderAAA
   m_EditorClassIdentifier: Assembly-CSharp::WeaponData
-  weaponName: SAM Site
+  weaponName: SoilderAAA
   realWorldReference: 
-  detectionRange: 30
-  fireRange: 25
+  detectionRange: 50
+  fireRange: 50
   fireRate: 2
-  damage: 50
+  damage: 15
   projectileSpeed: 30
-  projectilePrefab: {fileID: 0}
+  projectilePrefab: {fileID: 3957245026099762822, guid: 84e8f77b54e37d944a6a94460df6c617, type: 3}
   isGuided: 1
   reactionDelayBase: 0.5
   baseAimError: 0

@@ -135,7 +135,7 @@ MonoBehaviour:
   selectedColor: {r: 0, g: 1, b: 0.5, a: 1}
   hoverColor: {r: 1, g: 1, b: 1, a: 1}
   portraitIcon: {fileID: 597613003, guid: 9681f07cbc6391f458ddbb57a26cadfd, type: 3}
-  moveSpeed: 12
+  moveSpeed: 14
   nextWaypointDist: 1
   arrivalDist: 1.5
   turnSpeed: 240

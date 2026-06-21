@@ -133,7 +133,7 @@ MonoBehaviour:
   selectedColor: {r: 0, g: 1, b: 0.5, a: 1}
   hoverColor: {r: 1, g: 1, b: 1, a: 1}
   portraitIcon: {fileID: -1561751058, guid: 056a41f1885b7cb49b63a4ca9fd899bf, type: 3}
-  moveSpeed: 20
+  moveSpeed: 16
   nextWaypointDist: 1
   arrivalDist: 1.5
   rotationSpeed: 8
@@ -149,7 +149,7 @@ MonoBehaviour:
   modelRotationOffset: {x: 0, y: 90, z: 0}
   hoverAmplitude: 0.15
   hoverFrequency: 1.2
-  attackDamage: 150
+  attackDamage: 200
   impactDistance: 10
   explosionEffectPrefab: {fileID: 0}
   bodyTransform: {fileID: 7155972446960102522}
@@ -165,7 +165,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 84ed070e2ab215f499247e94a50e3e97, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DroneHealth
-  maxHP: 50
+  maxHP: 30
   disableCollidersOnDeath: 1
   disableThisObjectOnDeath: 1
   destroyRootOnDeath: 0

@@ -1944,7 +1944,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::MainMenuUI
   mainPanel: {fileID: 828614582}
   settingsPanel: {fileID: 973863176}
-  startSceneName: Drone-system_TestScene
+  startSceneName: Level1
   startSceneBuildIndex: 1
   loadBySceneName: 1
   cameraController: {fileID: 0}

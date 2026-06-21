@@ -140,6 +140,9 @@ public class MobileSAM : MonoBehaviour
 
         // 偵測 Trigger 放在子物件（避免 Scene 視窗誤選）
         GameObject detectionZone = new GameObject("DetectionZone");
+        int detectionLayer = LayerMask.NameToLayer("DetectionZone");
+        if (detectionLayer >= 0)
+            detectionZone.layer = detectionLayer;
         detectionZone.transform.SetParent(transform, false);
         detectionZone.transform.localPosition = Vector3.zero;
 

@@ -61,6 +61,14 @@ public class Soldier : MonoBehaviour
     [Header("狀態 (唯讀)")]
     public SoldierState currentState = SoldierState.Wander;
 
+    [Header("Animation")]
+    public Animator animator;
+    public bool disableRootMotion = true;
+    public string moveSpeedParameter = "MoveSpeed";
+    public string movingParameter = "IsMoving";
+    public string engagingParameter = "IsEngaging";
+    public string shootTriggerParameter = "Shoot";
+
     private BuildingHealth health;
     private Vector3 spawnPoint;
     private Vector3 wanderTarget;
@@ -79,6 +87,12 @@ public class Soldier : MonoBehaviour
         health = GetComponent<BuildingHealth>();
         spawnPoint = transform.position;
         groundRaycastMask = Physics.DefaultRaycastLayers & ~(1 << gameObject.layer);
+
+        if (animator == null)
+            animator = GetComponentInChildren<Animator>();
+
+        if (animator != null && disableRootMotion)
+            animator.applyRootMotion = false;
 
         // 偵測子物件
         GameObject detectionZone = new GameObject("DetectionZone");
@@ -135,6 +149,7 @@ public class Soldier : MonoBehaviour
         }
 
         SnapToGround();
+        UpdateAnimator();
     }
 
     private void UpdateWander()
@@ -239,6 +254,8 @@ public class Soldier : MonoBehaviour
     {
         if (weaponData == null || weaponData.projectilePrefab == null || currentTarget == null) return;
 
+        SetTriggerIfExists(shootTriggerParameter);
+
         Vector3 spawnPos = firePoint != null ? firePoint.position : transform.position;
         GameObject proj = Instantiate(weaponData.projectilePrefab, spawnPos, Quaternion.identity);
         SimpleProjectile sp = proj.GetComponent<SimpleProjectile>();
@@ -262,6 +279,49 @@ public class Soldier : MonoBehaviour
         if (currentTarget != null && RadarStation2.IsDroneDetected(currentTarget))
             baseError *= RadarStation2.GetAimErrorMultiplier();
         return baseError;
+    }
+
+    private void UpdateAnimator()
+    {
+        if (animator == null) return;
+
+        bool isMoving = currentState == SoldierState.Wander && !isPausing;
+        float animationSpeed = isMoving ? currentMoveSpeed : 0f;
+
+        SetBoolIfExists(movingParameter, isMoving);
+        SetBoolIfExists(engagingParameter, currentState == SoldierState.Engage);
+        SetFloatIfExists(moveSpeedParameter, animationSpeed);
+    }
+
+    private void SetBoolIfExists(string parameterName, bool value)
+    {
+        if (HasAnimatorParameter(parameterName, AnimatorControllerParameterType.Bool))
+            animator.SetBool(parameterName, value);
+    }
+
+    private void SetFloatIfExists(string parameterName, float value)
+    {
+        if (HasAnimatorParameter(parameterName, AnimatorControllerParameterType.Float))
+            animator.SetFloat(parameterName, value);
+    }
+
+    private void SetTriggerIfExists(string parameterName)
+    {
+        if (HasAnimatorParameter(parameterName, AnimatorControllerParameterType.Trigger))
+            animator.SetTrigger(parameterName);
+    }
+
+    private bool HasAnimatorParameter(string parameterName, AnimatorControllerParameterType parameterType)
+    {
+        if (animator == null || string.IsNullOrWhiteSpace(parameterName)) return false;
+
+        foreach (AnimatorControllerParameter parameter in animator.parameters)
+        {
+            if (parameter.name == parameterName && parameter.type == parameterType)
+                return true;
+        }
+
+        return false;
     }
 
     private void PickNewWanderTarget()

@@ -134,6 +134,12 @@ public class SelectionManager : MonoBehaviour
         }
     }
 
+    public int GetAliveDroneCount()
+    {
+        CleanupDestroyedUnits();
+        return _allDrones.Count + _allShaheds.Count + _allRecons.Count + _allDecoys.Count;
+    }
+
     // ───────────────────────────────────────────────────────────────
     void Awake()
     {
