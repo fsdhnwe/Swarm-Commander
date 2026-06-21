@@ -3,6 +3,8 @@ using UnityEngine.InputSystem;
 
 public class TopDownCameraController : MonoBehaviour
 {
+    public const string MoveSpeedPrefsKey = "Settings.CameraMoveSpeed";
+
     [Header("Move Settings")]
     public float moveSpeed = 20f;
     public float edgeSize = 20f;
@@ -11,6 +13,19 @@ public class TopDownCameraController : MonoBehaviour
     public float zoomSpeed = 50f;
     public float minHeight = 20f;
     public float maxHeight = 80f;
+
+    void Awake()
+    {
+        if (PlayerPrefs.HasKey(MoveSpeedPrefsKey))
+            moveSpeed = PlayerPrefs.GetFloat(MoveSpeedPrefsKey, moveSpeed);
+    }
+
+    public void SetMoveSpeed(float value)
+    {
+        moveSpeed = Mathf.Max(0f, value);
+        PlayerPrefs.SetFloat(MoveSpeedPrefsKey, moveSpeed);
+        PlayerPrefs.Save();
+    }
 
     void Update()
     {
