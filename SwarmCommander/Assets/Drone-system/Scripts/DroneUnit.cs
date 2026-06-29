@@ -1,9 +1,10 @@
 ﻿using UnityEngine;
 using Pathfinding;
+using System;
 
 [RequireComponent(typeof(Seeker))]
 [RequireComponent(typeof(Collider))]
-public class DroneUnit : MonoBehaviour
+public class DroneUnit : MonoBehaviour, ISelectableDrone
 {
     public enum DroneState { Idle, Move, Attack, Return }
 
@@ -13,6 +14,9 @@ public class DroneUnit : MonoBehaviour
     public Color hoverColor = Color.white;
     public Color normalColor = Color.white;
 
+    [Header("Selection UI")]
+    public Sprite portraitIcon;
+
     [Header("Movement")]
     public float moveSpeed = 8f;
     public float nextWaypointDist = 1f;
@@ -20,6 +24,9 @@ public class DroneUnit : MonoBehaviour
 
     [Header("Rotation")]
     public float rotationSpeed = 8f;
+    public float turnSpeed = 240f;
+    public float fullSpeedTurnAngle = 25f;
+    public float turnInPlaceAngle = 120f;
 
     [Header("Model Correction")]
     public Vector3 modelRotationOffset = Vector3.zero;
@@ -70,16 +77,23 @@ public class DroneUnit : MonoBehaviour
 
     private static readonly Collider[] _neighborBuffer = new Collider[32];
 
+    public event Action<DroneUnit> MoveArrived;
+    public event Action<ISelectableDrone> OnHealthChanged;
+    public event Action<ISelectableDrone> OnDied;
+    public event Action<ISelectableDrone, bool> OnSelectedChanged;
+
     public DroneState State => _state;
     public bool IsSelected { get; private set; }
     public Vector3 CurrentMoveDir => _currentMoveDir;
+    public Sprite PortraitIcon => portraitIcon;
+    public GameObject GameObject => gameObject;
 
     void Awake()
     {
         _seeker = GetComponent<Seeker>();
         _renderers = GetComponentsInChildren<Renderer>();
         _hoverBasePosition = transform.position;
-        _hoverOffset = Random.Range(0f, Mathf.PI * 2f);
+        _hoverOffset = UnityEngine.Random.Range(0f, Mathf.PI * 2f);
         _outline = GetComponentInChildren<Outline>();
 
         if (bodyTransform == null)
@@ -90,6 +104,13 @@ public class DroneUnit : MonoBehaviour
         RefreshOutline();
         SetSelectionIndicator(false);
         ApplyColor(normalColor);
+
+        DroneHealth health = GetComponent<DroneHealth>();
+        if (health != null)
+        {
+            health.OnHealthChanged += HandleHealthChanged;
+            health.OnDied += HandleDied;
+        }
     }
 
     void Update()
@@ -134,6 +155,7 @@ public class DroneUnit : MonoBehaviour
             _hoverBasePosition = transform.position;
             _currentMoveDir = Vector3.zero;
             ChangeState(DroneState.Idle);
+            MoveArrived?.Invoke(this);
             return;
         }
 
@@ -154,11 +176,14 @@ public class DroneUnit : MonoBehaviour
             blendedDir = seekDir;
 
         blendedDir.Normalize();
-        _currentMoveDir = blendedDir;
-        transform.position += blendedDir * moveSpeed * Time.deltaTime;
-
         FaceDirection(blendedDir);
-        SmoothTilt(seekDir);
+
+        float speedFactor = GetTurnSpeedFactor(blendedDir);
+        Vector3 moveStep = blendedDir * moveSpeed * speedFactor * Time.deltaTime;
+        _currentMoveDir = speedFactor > 0.01f ? blendedDir : Vector3.zero;
+        transform.position += moveStep;
+
+        SmoothTilt(seekDir * speedFactor);
 
         if (Vector3.Distance(transform.position, waypoint) < nextWaypointDist)
             _waypointIndex++;
@@ -166,7 +191,7 @@ public class DroneUnit : MonoBehaviour
 
     void UpdateAttack()
     {
-        if (_attackTarget == null || !_attackTarget.IsAlive)
+        if (_attackTarget == null || !_attackTarget.IsAlive || !_attackTarget.HasActionableIntel)
         {
             _hoverBasePosition = transform.position;
             _attackTarget = null;
@@ -180,16 +205,19 @@ public class DroneUnit : MonoBehaviour
 
         if (distance > attackRange)
         {
-            Vector3 moveDir = dir.normalized;
-            _currentMoveDir = moveDir;
-            transform.position += moveDir * moveSpeed * Time.deltaTime;
+            Vector3 moveDir = GetAttackMoveDirection(dir.normalized);
             FaceDirection(moveDir);
-            SmoothTilt(moveDir);
+
+            float speedFactor = GetTurnSpeedFactor(moveDir);
+            _currentMoveDir = speedFactor > 0.01f ? moveDir : Vector3.zero;
+            transform.position += moveDir * moveSpeed * speedFactor * Time.deltaTime;
+            SmoothTilt(moveDir * speedFactor);
             return;
         }
 
         FaceDirection(flatDir);
         _currentMoveDir = Vector3.zero;
+        ApplyAttackSpacing();
         SmoothTilt(Vector3.zero);
 
         if (Time.time < _nextAttackTime) return;
@@ -267,6 +295,26 @@ public class DroneUnit : MonoBehaviour
         return avgDir.normalized;
     }
 
+    Vector3 GetAttackMoveDirection(Vector3 targetDirection)
+    {
+        Vector3 blendedDir = targetDirection + ComputeSeparation() * separationWeight;
+
+        if (blendedDir.sqrMagnitude < 0.0001f)
+            blendedDir = targetDirection;
+
+        return blendedDir.normalized;
+    }
+
+    void ApplyAttackSpacing()
+    {
+        Vector3 separation = ComputeSeparation();
+        if (separation.sqrMagnitude <= 0.0001f) return;
+
+        Vector3 spacingDir = separation.normalized;
+        _currentMoveDir = spacingDir;
+        transform.position += spacingDir * moveSpeed * 0.5f * Time.deltaTime;
+    }
+
     public void MoveTo(Vector3 worldPosition)
     {
         _attackTarget = null;
@@ -281,10 +329,14 @@ public class DroneUnit : MonoBehaviour
 
     public void AttackTarget(TargetableObject target)
     {
-        if (target == null || !target.IsAlive) return;
+        if (target == null || !target.IsAlive || !target.HasActionableIntel) return;
 
+        bool sameTarget = _attackTarget == target && _state == DroneState.Attack;
         _attackTarget = target;
-        _nextAttackTime = 0f;
+
+        if (!sameTarget && _nextAttackTime < Time.time)
+            _nextAttackTime = 0f;
+
         ChangeState(DroneState.Attack);
     }
 
@@ -316,9 +368,22 @@ public class DroneUnit : MonoBehaviour
 
     public void SetSelected(bool selected)
     {
+        if (IsSelected == selected) return;
+
         IsSelected = selected;
         RefreshOutline();
         SetSelectionIndicator(selected);
+        OnSelectedChanged?.Invoke(this, selected);
+    }
+
+    private void HandleHealthChanged(DroneHealth health)
+    {
+        OnHealthChanged?.Invoke(this);
+    }
+
+    private void HandleDied(DroneHealth health)
+    {
+        OnDied?.Invoke(this);
     }
 
     public void SetHovered(bool hovered)
@@ -359,7 +424,21 @@ public class DroneUnit : MonoBehaviour
         transform.rotation = Quaternion.RotateTowards(
             transform.rotation,
             targetRot,
-            rotationSpeed * 100f * Time.deltaTime);
+            turnSpeed * Time.deltaTime);
+    }
+
+    float GetTurnSpeedFactor(Vector3 desiredDirection)
+    {
+        Vector3 flatDir = new Vector3(desiredDirection.x, 0f, desiredDirection.z);
+        if (flatDir.sqrMagnitude <= 0.001f) return 0f;
+
+        Vector3 forward = transform.forward;
+        forward.y = 0f;
+        if (forward.sqrMagnitude <= 0.001f) return 1f;
+
+        float angle = Vector3.Angle(forward.normalized, flatDir.normalized);
+        float stopAngle = Mathf.Max(fullSpeedTurnAngle + 0.01f, turnInPlaceAngle);
+        return Mathf.InverseLerp(stopAngle, fullSpeedTurnAngle, angle);
     }
 
     void SmoothTilt(Vector3 moveDirection)

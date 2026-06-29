@@ -15,6 +15,11 @@ public class DefenseInterceptor : MonoBehaviour
     [Header("武器參數 (把 SAM 或 AAA 的 WeaponData 拖到這裡)")]
     public WeaponData weaponData;
 
+    [Header("威脅評估 (第二關起啟用)")]
+    [Tooltip("勾選後改用威脅評估選目標，不勾則維持原本選最近目標的邏輯")]
+    public bool useThreatEvaluation = false;
+    public ThreatEvaluator.ThreatWeights threatWeights = new ThreatEvaluator.ThreatWeights();
+
     [Header("砲塔旋轉物件 (把會轉動的子物件拖進來；留空則轉動整個建築)")]
     public Transform turretPivot;
 
@@ -62,7 +67,9 @@ public class DefenseInterceptor : MonoBehaviour
                 break;
 
             case InterceptorState.Detect:
-                currentTarget = FindClosestTarget();
+                currentTarget = useThreatEvaluation
+                    ? ThreatEvaluator.FindHighestThreat(transform.position, targetsInRange, threatWeights)
+                    : FindClosestTarget();
                 if (currentTarget != null)
                 {
                     currentState = InterceptorState.Track;
@@ -91,7 +98,10 @@ public class DefenseInterceptor : MonoBehaviour
                 }
 
                 float dist = Vector3.Distance(transform.position, currentTarget.position);
-                if (dist <= weaponData.fireRange)
+                // 雷達鎖定目標時，射程套用加成倍率
+                float effectiveFireRange = weaponData.fireRange *
+                    (RadarStation2.IsDroneDetected(currentTarget) ? RadarStation2.GetFireRangeBonus() : 1f);
+                if (dist <= effectiveFireRange)
                 {
                     RotateTowards(currentTarget.position);
 
@@ -199,11 +209,16 @@ public class DefenseInterceptor : MonoBehaviour
         return weaponData.reactionDelayBase * multiplier;
     }
 
+    // 通訊完整度越低，瞄準誤差越大 (最多放大到約5倍)
+    // 雷達鎖定目標時，瞄準誤差套用降低倍率
     private float GetAimError()
     {
         float comms = CommandNetwork.Instance != null ? CommandNetwork.Instance.commsIntegrity : 1f;
         float worstCase = weaponData.baseAimError * 5f;
-        return Mathf.Lerp(worstCase, weaponData.baseAimError, comms);
+        float baseError = Mathf.Lerp(worstCase, weaponData.baseAimError, comms);
+        if (currentTarget != null && RadarStation2.IsDroneDetected(currentTarget))
+            baseError *= RadarStation2.GetAimErrorMultiplier();
+        return baseError;
     }
 
     private void FireAtTarget()

@@ -22,4 +22,4 @@ MonoBehaviour:
   projectilePrefab: {fileID: 3957245026099762822, guid: 84e8f77b54e37d944a6a94460df6c617, type: 3}
   isGuided: 0
   reactionDelayBase: 0.2
-  baseAimError: 0.5
+  baseAimError: 0.2

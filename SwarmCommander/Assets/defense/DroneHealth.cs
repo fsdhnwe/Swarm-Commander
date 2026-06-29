@@ -1,27 +1,66 @@
+using System;
 using UnityEngine;
 
-// 測試用：掛在玩家無人機(Tag = PlayerDrone)上
-// 讓 SAM/AAA 發射的 SimpleProjectile 命中時可以扣血、擊落
-// 之後進攻方的正式無人機腳本完成後，這個可以整合過去或互相參考
 public class DroneHealth : MonoBehaviour
 {
     public int maxHP = 50;
+    public bool disableCollidersOnDeath = true;
+    public bool disableThisObjectOnDeath = false;
+    public bool destroyRootOnDeath = false;
     private int currentHP;
 
-    void Awake()
+    public int CurrentHP => currentHP;
+    public float NormalizedHealth => maxHP > 0 ? Mathf.Clamp01((float)currentHP / maxHP) : 0f;
+
+    public event Action<DroneHealth> OnHealthChanged;
+    public event Action<DroneHealth> OnDied;
+
+    private void Awake()
     {
         currentHP = maxHP;
     }
 
     public void TakeDamage(int amount)
     {
-        currentHP -= amount;
-        Debug.Log($"{gameObject.name} 受到 {amount} 傷害，剩餘 HP: {currentHP}");
+        currentHP = Mathf.Max(0, currentHP - amount);
+        OnHealthChanged?.Invoke(this);
 
-        if (currentHP <= 0)
+        Debug.Log($"{gameObject.name} took {amount} damage, HP: {currentHP}");
+
+        if (currentHP > 0) return;
+
+        Debug.Log($"{gameObject.name} destroyed.");
+        NotifySelectableDroneDied();
+        OnDied?.Invoke(this);
+        ApplyDeathObjectState();
+    }
+
+    private void NotifySelectableDroneDied()
+    {
+        ISelectableDrone selectableDrone = GetComponentInParent<ISelectableDrone>();
+        if (selectableDrone != null && GameManager.Instance != null)
+            GameManager.Instance.RemoveDroneFromAllGroups(selectableDrone);
+    }
+
+    private void ApplyDeathObjectState()
+    {
+        ISelectableDrone selectableDrone = GetComponentInParent<ISelectableDrone>();
+        GameObject root = selectableDrone?.GameObject != null ? selectableDrone.GameObject : gameObject;
+
+        if (destroyRootOnDeath)
         {
-            Debug.Log($"{gameObject.name} 被擊落！");
-            gameObject.SetActive(false);
+            Destroy(root);
+            return;
         }
+
+        if (disableCollidersOnDeath)
+        {
+            Collider[] colliders = root.GetComponentsInChildren<Collider>();
+            foreach (Collider collider in colliders)
+                collider.enabled = false;
+        }
+
+        if (disableThisObjectOnDeath)
+            gameObject.SetActive(false);
     }
 }

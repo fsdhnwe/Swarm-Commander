@@ -21,7 +21,17 @@ public class SelectionBoxUI : MonoBehaviour
     void Awake()
     {
         if (selectionBoxRect != null)
+        {
+            foreach (Graphic graphic in selectionBoxRect.GetComponentsInChildren<Graphic>(true))
+                graphic.raycastTarget = false;
+
+            CanvasGroup canvasGroup = selectionBoxRect.GetComponent<CanvasGroup>();
+            if (canvasGroup == null)
+                canvasGroup = selectionBoxRect.gameObject.AddComponent<CanvasGroup>();
+
+            canvasGroup.blocksRaycasts = false;
             selectionBoxRect.gameObject.SetActive(false);
+        }
     }
 
     /// <summary>Update box each frame while dragging.</summary>

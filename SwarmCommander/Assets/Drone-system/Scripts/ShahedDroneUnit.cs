@@ -1,9 +1,10 @@
 using UnityEngine;
 using Pathfinding;
+using System;
 
 [RequireComponent(typeof(Seeker))]
 [RequireComponent(typeof(Collider))]
-public class ShahedDroneUnit : MonoBehaviour
+public class ShahedDroneUnit : MonoBehaviour, ISelectableDrone
 {
     public enum ShahedState { Idle, Move, Attack }
 
@@ -12,11 +13,23 @@ public class ShahedDroneUnit : MonoBehaviour
     public Color selectedColor = new Color(0f, 1f, 0.5f, 1f);
     public Color hoverColor = Color.white;
 
+    [Header("Selection UI")]
+    public Sprite portraitIcon;
+
     [Header("Movement")]
     public float moveSpeed = 8f;
     public float nextWaypointDist = 1f;
     public float arrivalDist = 1.5f;
     public float rotationSpeed = 8f;
+    public float turnSpeed = 150f;
+    public float fullSpeedTurnAngle = 25f;
+    public float turnInPlaceAngle = 120f;
+
+    [Header("Attack Spacing")]
+    public float neighborRadius = 8f;
+    public LayerMask droneLayer = 1 << 6;
+    public float separationWeight = 2f;
+    public float separationDistance = 6f;
 
     [Header("Model Correction")]
     public Vector3 modelRotationOffset = Vector3.zero;
@@ -45,14 +58,22 @@ public class ShahedDroneUnit : MonoBehaviour
     private Renderer[] _renderers;
     private bool _isHovered;
 
+    private static readonly Collider[] _neighborBuffer = new Collider[32];
+
     public ShahedState State => _state;
     public bool IsSelected { get; private set; }
+    public Sprite PortraitIcon => portraitIcon;
+    public GameObject GameObject => gameObject;
+    public event Action<ISelectableDrone> OnHealthChanged;
+    public event Action<ISelectableDrone> OnDied;
+    public event Action<ISelectableDrone, bool> OnSelectedChanged;
+    public event Action<ShahedDroneUnit> MoveArrived;
 
     void Awake()
     {
         _seeker = GetComponent<Seeker>();
         _hoverBasePosition = transform.position;
-        _hoverOffset = Random.Range(0f, Mathf.PI * 2f);
+        _hoverOffset = UnityEngine.Random.Range(0f, Mathf.PI * 2f);
         _outline = GetComponentInChildren<Outline>();
         _renderers = GetComponentsInChildren<Renderer>();
 
@@ -61,6 +82,13 @@ public class ShahedDroneUnit : MonoBehaviour
 
         SetSelectionIndicator(false);
         RefreshOutline();
+
+        DroneHealth health = GetComponent<DroneHealth>();
+        if (health != null)
+        {
+            health.OnHealthChanged += HandleHealthChanged;
+            health.OnDied += HandleDied;
+        }
     }
 
     void Update()
@@ -96,6 +124,7 @@ public class ShahedDroneUnit : MonoBehaviour
             _reachedEnd = true;
             _hoverBasePosition = transform.position;
             ChangeState(ShahedState.Idle);
+            MoveArrived?.Invoke(this);
             return;
         }
 
@@ -106,8 +135,9 @@ public class ShahedDroneUnit : MonoBehaviour
         waypoint.y = transform.position.y;
 
         Vector3 moveDir = (waypoint - transform.position).normalized;
-        transform.position += moveDir * moveSpeed * Time.deltaTime;
         FaceDirection(moveDir);
+        float speedFactor = GetTurnSpeedFactor(moveDir);
+        transform.position += moveDir * moveSpeed * speedFactor * Time.deltaTime;
 
         if (Vector3.Distance(transform.position, waypoint) < nextWaypointDist)
             _waypointIndex++;
@@ -115,7 +145,7 @@ public class ShahedDroneUnit : MonoBehaviour
 
     void UpdateAttack()
     {
-        if (_attackTarget == null || !_attackTarget.IsAlive)
+        if (_attackTarget == null || !_attackTarget.IsAlive || !_attackTarget.HasActionableIntel)
         {
             _attackTarget = null;
             _hoverBasePosition = transform.position;
@@ -134,9 +164,10 @@ public class ShahedDroneUnit : MonoBehaviour
             return;
         }
 
-        Vector3 moveDir = toTarget.normalized;
-        transform.position += moveDir * moveSpeed * Time.deltaTime;
+        Vector3 moveDir = GetAttackMoveDirection(toTarget.normalized);
         FaceDirection(moveDir);
+        float speedFactor = GetTurnSpeedFactor(moveDir);
+        transform.position += moveDir * moveSpeed * speedFactor * Time.deltaTime;
     }
 
     public void MoveTo(Vector3 worldPosition)
@@ -151,17 +182,65 @@ public class ShahedDroneUnit : MonoBehaviour
 
     public void AttackTarget(TargetableObject target)
     {
-        if (target == null || !target.IsAlive) return;
+        if (target == null || !target.IsAlive || !target.HasActionableIntel) return;
 
         _attackTarget = target;
         ChangeState(ShahedState.Attack);
     }
 
+    Vector3 GetAttackMoveDirection(Vector3 targetDirection)
+    {
+        Vector3 blendedDir = targetDirection + ComputeSeparation() * separationWeight;
+
+        if (blendedDir.sqrMagnitude < 0.0001f)
+            blendedDir = targetDirection;
+
+        return blendedDir.normalized;
+    }
+
+    Vector3 ComputeSeparation()
+    {
+        Vector3 result = Vector3.zero;
+        int count = Physics.OverlapSphereNonAlloc(
+            transform.position, neighborRadius, _neighborBuffer, droneLayer);
+
+        for (int i = 0; i < count; i++)
+        {
+            Collider other = _neighborBuffer[i];
+            if (other == null) continue;
+            if (other.gameObject == gameObject) continue;
+
+            Vector3 toSelf = transform.position - other.transform.position;
+            float dist = toSelf.magnitude;
+
+            if (dist > 0f && dist < separationDistance)
+                result += toSelf.normalized * (separationDistance - dist) / separationDistance;
+        }
+
+        result.y = 0f;
+        return result;
+    }
+
     public void SetSelected(bool selected)
     {
+        if (IsSelected == selected) return;
+
         IsSelected = selected;
         SetSelectionIndicator(selected);
         RefreshOutline();
+        OnSelectedChanged?.Invoke(this, selected);
+    }
+
+    private void HandleHealthChanged(DroneHealth health)
+    {
+        OnHealthChanged?.Invoke(this);
+    }
+
+    private void HandleDied(DroneHealth health)
+    {
+        OnDied?.Invoke(this);
+        if (GameManager.Instance != null)
+            GameManager.Instance.RemoveDroneFromAllGroups(this);
     }
 
     public void SetHovered(bool hovered)
@@ -229,6 +308,10 @@ public class ShahedDroneUnit : MonoBehaviour
         if (explosionEffectPrefab != null)
             Instantiate(explosionEffectPrefab, explosionPosition, Quaternion.identity);
 
+        OnDied?.Invoke(this);
+        if (GameManager.Instance != null)
+            GameManager.Instance.RemoveDroneFromAllGroups(this);
+
         Destroy(gameObject);
     }
 
@@ -262,10 +345,24 @@ public class ShahedDroneUnit : MonoBehaviour
         if (flatDir.sqrMagnitude <= 0.001f) return;
 
         Quaternion targetRot = Quaternion.LookRotation(flatDir.normalized, Vector3.up);
-        transform.rotation = Quaternion.Slerp(
+        transform.rotation = Quaternion.RotateTowards(
             transform.rotation,
             targetRot,
-            rotationSpeed * Time.deltaTime);
+            turnSpeed * Time.deltaTime);
+    }
+
+    float GetTurnSpeedFactor(Vector3 desiredDirection)
+    {
+        Vector3 flatDir = new Vector3(desiredDirection.x, 0f, desiredDirection.z);
+        if (flatDir.sqrMagnitude <= 0.001f) return 0f;
+
+        Vector3 forward = transform.forward;
+        forward.y = 0f;
+        if (forward.sqrMagnitude <= 0.001f) return 1f;
+
+        float angle = Vector3.Angle(forward.normalized, flatDir.normalized);
+        float stopAngle = Mathf.Max(fullSpeedTurnAngle + 0.01f, turnInPlaceAngle);
+        return Mathf.InverseLerp(stopAngle, fullSpeedTurnAngle, angle);
     }
 
     void SetSelectionIndicator(bool show)

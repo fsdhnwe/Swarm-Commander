@@ -14,7 +14,7 @@ TagManager:
   - UI
   - Drone
   - Enemy
-  - 
+  - DetectionZone
   - 
   - 
   - 
@@ -41,6 +41,15 @@ TagManager:
   m_SortingLayers:
   - name: Default
     uniqueID: 0
+    locked: 0
+  - name: Background
+    uniqueID: 561729567
+    locked: 0
+  - name: GameUI
+    uniqueID: 3237962791
+    locked: 0
+  - name: Effects
+    uniqueID: 3212862489
     locked: 0
   m_RenderingLayers:
   - Default
